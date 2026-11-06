@@ -12,6 +12,8 @@ import type { BrandDocument, DonorContext, StudioDesign, StudioDoc, StudioNode }
 import { renderStudio } from "@/server/src/oyama-create/studio/render";
 import { paginationMetrics } from "@/server/src/oyama-create/studio/layout";
 import { normalizeDoc } from "@/server/src/oyama-create/studio/design";
+import VerticalPagination from "./VerticalPagination";
+import { MergeField, MergeTokenInput } from "./MergeFieldExtension";
 import StudioColumns from "./StudioColumns";
 import { blockPreviewDesign } from "./block-preview";
 import StudioImage from "./StudioImage";
@@ -19,7 +21,7 @@ import StudioCanvasControls from "./StudioCanvasControls";
 import { blockDestinations, moveStudioBlock, selectedStudioBlock, studioBlocks } from "./block-actions";
 import { STUDIO_BLOCKS } from "@/server/src/oyama-create/studio/registry";
 
-export type StudioEditorContext = { design: StudioDesign; donor: DonorContext; brand: BrandDocument; channel?: "LETTER" | "EMAIL" | "WEB" | "SOCIAL" | "SMS" };
+export type StudioEditorContext = { design: StudioDesign; donor: DonorContext; brand: BrandDocument; channel?: "LETTER" | "EMAIL" | "WEB" | "SOCIAL" | "SMS"; verticalPages?: boolean };
 const PreviewContext = createContext<StudioEditorContext|null>(null);
 const defaults: Record<string, unknown> = { studioId: null, level: 2, textAlign: "left", indent: 0, spacing: null, keepTogether: false, keepWithNext: false, src: "", alt: "", width: 100, height: 0, crop: "contain", focalX: 50, focalY: 50, caption: "", href: "", color: "#edf4fc", signerId: "", secondSignerId: "", closing: "", field: "name", operator: "is", value: "true", basis: "fixed", amounts: [], multipliers: [1,1.5,2], fallback: [], minimum: 1, maximum: 100000, rounding: 5, label: "", mode: "summary", statement: "", size: 96, html: "", reviewedHtml: "", sourceRevisionId: "", thumbnail: "", linksJson: "[]", printOnly: false, emailOnly: false };
 const attributes = () => Object.fromEntries(Object.entries(defaults).map(([key, value]) => [key, { default: value }]));
@@ -52,11 +54,11 @@ function extensions(context: { current: StudioEditorContext }) {
   const legacy = Node.create({ name: "studioLegacy", group: "block", atom: true, addOptions: () => ({ context }), addAttributes: attributes, parseHTML: () => [{ tag: "div[data-studio-legacy]" }], renderHTML: () => ["div", { "data-studio-legacy": "true" }, "Preserved legacy content — review conversion"], addNodeView: () => ReactNodeViewRenderer(AtomicBlock) });
   const pageBreak = Node.create({ name: "letterPageBreak", group: "block", atom: true, addAttributes: () => ({ studioId: { default: null } }), parseHTML: () => [{ tag: "div[data-letter-page-break]" }], renderHTML: () => ["div", { "data-letter-page-break": "true", class: "cs-page-break" }] });
   const spacer = Node.create({ name: "letterSpacer", group: "block", atom: true, addAttributes: () => ({ height: { default: 12 }, studioId: { default: null } }), parseHTML: () => [{ tag: "div[data-letter-spacer]" }], renderHTML: ({ node }) => ["div", { "data-letter-spacer": "true", style: `height:${node.attrs.height}pt`, class: "cs-spacer" }] });
-  return [StarterKit.configure({ link: { openOnClick: false } }), TextStyleKit, TextAlign.configure({ types: ["heading", "paragraph"] }), TableKit.configure({ table: { resizable: true } }), image, layout, identities, ...wrappers, ...atoms, legacy, pageBreak, spacer];
+  return [VerticalPagination.configure({enabled:()=>context.current.verticalPages===true,design:()=>context.current.design}), MergeField, MergeTokenInput.configure({enabled:()=>context.current.design.version===4}), StarterKit.configure({ link: { openOnClick: false } }), TextStyleKit, TextAlign.configure({ types: ["heading", "paragraph"] }), TableKit.configure({ table: { resizable: true } }), image, layout, identities, ...wrappers, ...atoms, legacy, pageBreak, spacer];
 }
 export default function StudioEditor({ initial, context, onChange, onReady, onSelect, editable = true, onInsertRequest, initialHtml }: { initial: StudioDoc; context: { current: StudioEditorContext }; onChange: (doc: StudioDoc) => void; onReady: (editor: Editor) => void; onSelect: (node: StudioNode | null, position: number) => void; editable?: boolean; onInsertRequest?: (node: StudioNode) => void; initialHtml?: string }) {
   const kit = useMemo(() => extensions(context), [context]);
-  const editor = useEditor({ immediatelyRender: false, extensions: kit, content: initialHtml ?? initial as JSONContent, editable, editorProps: { attributes: { role: "textbox", "aria-label": context.current.channel === "EMAIL" ? "Studio email content" : "Studio letter content", "aria-multiline": "true", class: "studio-content cs-editable", spellcheck: "true" }, handleKeyDown(view, event) {
+  const editor = useEditor({ immediatelyRender: false, extensions: kit, content: initialHtml ?? initial as JSONContent, editable, editorProps: { attributes: { role: "textbox", "aria-label": context.current.channel && context.current.channel!=="LETTER" ? `Studio ${context.current.channel.toLowerCase()} content` : "Studio letter content", "aria-multiline": "true", class: "studio-content cs-editable", spellcheck: "true" }, handleKeyDown(view, event) {
     if (event.key === "Escape") { delete view.dom.dataset.studioDropPosition; delete view.dom.dataset.studioDragging; view.dom.dispatchEvent(new CustomEvent("studio-drop-target", { detail: null })); }
     if (event.key === "/" && !event.ctrlKey && !event.metaKey && view.state.selection.empty && view.state.selection.$from.parent.type.name === "paragraph" && view.state.selection.$from.parent.textContent === "") {
       event.preventDefault(); view.dom.dispatchEvent(new CustomEvent("studio-insert", { detail: view.state.selection.from })); return true;
@@ -110,6 +112,7 @@ export default function StudioEditor({ initial, context, onChange, onReady, onSe
     const position = Math.max(0, Math.min(editor.state.doc.content.size, restored ? restored.position + Math.min(offset, restored.node.nodeSize - 1) : prior));
     editor.view.dispatch(editor.state.tr.setSelection(Selection.near(editor.state.doc.resolve(position))).setMeta("addToHistory", false));
   }, [editor, initial, initialHtml]);
+  useEffect(() => { if(editor) requestAnimationFrame(()=>editor.view.dom.dispatchEvent(new Event("create-measure-pages"))); }, [editor, context.current.design.page, context.current.design.styles]);
   useEffect(() => { editor?.setEditable(editable, false); }, [editor, editable]);
-  return <PreviewContext.Provider value={context.current}><EditorContent className="cs-editor-content" editor={editor}/>{editor && editable && <StudioCanvasControls editor={editor} onInsertRequest={onInsertRequest}/>}</PreviewContext.Provider>;
+  return <PreviewContext.Provider value={context.current}><EditorContent className="cs-editor-content" editor={editor}/>{editor && editable && <StudioCanvasControls quiet={context.current.design.version===4||context.current.verticalPages} editor={editor} onInsertRequest={onInsertRequest}/>}</PreviewContext.Provider>;
 }

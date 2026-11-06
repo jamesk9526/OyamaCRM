@@ -24,11 +24,14 @@ describe('production PDF frozen assets and chrome', () => {
     expect(html).toContain('{{donor.fullName}}');expect(html).toContain('{{donor.addressBlock}}');
     snapshot.header.rightColumnMode='CUSTOM';snapshot.header.rightColumnHtml='<p>Dear {first}</p>';
     expect(authoredLetterChromeHtml(snapshot,false)).toContain('Dear {first}');
+    snapshot.header.customHtml='<table style="border-spacing:0;margin:12px 0"><tr><td style="width:40%;vertical-align:top"><p style="font-family:Georgia;line-height:1.2">Original layout</p></td></tr></table>';
+    const preserved=authoredLetterChromeHtml(snapshot,false);
+    expect(preserved).toContain('margin:12px 0');expect(preserved).toContain('border-spacing:0');expect(preserved).toContain('vertical-align:top');
   });
   it('preserves sanitized editable letterhead images while production still requires frozen bytes', () => {
     const snapshot = fixture();
     snapshot.header = { customHtml: '<p><img src="/uploads/branding/fixture-org/header.png" onerror="unsafe()"></p>' };
-    expect(authoredLetterChromeHtml(snapshot, false)).toContain('src="/uploads/branding/fixture-org/header.png"');
+    expect(authoredLetterChromeHtml(snapshot, false)).toContain('src="/api/public-media/branding/fixture-org/header.png"');
     expect(authoredLetterChromeHtml(snapshot, false)).not.toContain('onerror');
     expect(() => letterChromeHtml(snapshot, false)).toThrow('frozen asset package');
     snapshot.assets['/uploads/branding/fixture-org/header.png'] = image;

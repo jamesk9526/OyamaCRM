@@ -1,3 +1,26 @@
+## Create v5 unified workspace rollout gate — 2026-11-06
+
+- [x] Preserve the supplied capability checklist in a destination/service/permission/test/status matrix and retain standalone routes and prior uncommitted improvements.
+- [x] Implement the v5 pinned shell, independent scroll regions, clamped accessible docks, local view preferences, command palette, six ribbon tabs, responsive overlays and all Create navigation destinations.
+- [x] Add backward-compatible v4 structured content, protected inline merge tokens, unchanged original source bindings, retained channel sessions, internal shared Notes and quick draft starts.
+- [x] Add vertical derived page layout, Half Letter, explicit print-font availability, immutable font assets and old/new frozen snapshot readers.
+- [x] Verify synthetic authorization/revision/notes isolation, legacy merge/import/HTML regressions, browser interaction and four-size production proof geometry. Exact commands/results are in the linked audit.
+- [x] Apply the migration chain to an isolated MariaDB 10.4.32 database. Pass all ten migration/contention checks and confirm note persistence after restart.
+- [ ] Apply `20261106030000_create_v5_workspace` to a backed-up staging database and rehearse rollout and rollback before enabling production defaults.
+- [ ] Compare the organization's representative original jsPDF documents with v5 recipient proofs: real names, headers/footers, fonts, signatures, long tables, conditional copy and all print-pack media. Synthetic v3→v4 projection checks do not certify original output equivalence.
+- [ ] Verify physical printer/Avery/envelope alignment, real email clients and configured provider accounts before enabling production defaults. Keep both rollout flags off until applicable pilot gates pass.
+
+[Implementation, rollout and rollback](../plans/oyama-create-v5-implementation.md) · [Verification and screenshots](audit-artifacts/2026-11-06-create-v5/verification.md)
+
+## Create / original Letters compatibility — 2026-11-05
+
+- [x] Reuse the actual original Letters editor/canvas for editable imported letters inside Create; keep Studio accessible and flush pending edits on switching.
+- [x] Refresh source bindings after original saves without silently overwriting upgraded Studio edits; keep the comparison/reconciliation flow.
+- [x] Cover the complete canonical legacy Letters merge catalog and aliases alongside new donor tokens; preserve sensitive/public-channel validation.
+- [x] Preserve saved global header/footer layout, preset IDs and selected signer in immutable import snapshots; retain safe authored styling.
+- [x] Verify original canvas dimensions/padding/type settings against standalone at desktop/phone widths with synthetic data; verify save/refresh/switch interactions and focused API regressions.
+- [ ] Deploy web/API together and verify actual original November letter, branding and recipient proofs. Browser access was disabled during this request; no production changes were made.
+- [ ] Establish full upgraded-Studio/batch-renderer equivalence against the old output for production letters, including images, address headers, multi-page breaks and physical-printer results. Original editor PDF actions use the existing legacy path; no complete pixel-equivalence claim is made.
 ## Standalone communication access / Create fidelity — 2026-11-05
 
 - [x] Keep original Letters/Email routes out of automatic Create redirects, with links from Create and retained existing app navigation.

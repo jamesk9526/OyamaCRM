@@ -1,7 +1,7 @@
 import type { Request } from "express";
 import type { CreateCampaign } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
-import { getConstituentDisplayName, getConstituentSalutation } from "../../lib/constituent-identity.js";
+import { getConstituentDisplayName, getConstituentSalutation, isOrganizationConstituent, getConstituentContactFullName } from "../../lib/constituent-identity.js";
 import { getYearRange, getFiscalYearRange, normalizeFiscalYearStart } from "../../lib/dateRanges.js";
 import { can, demand } from "../access.js";
 import { CreateError } from "../domain.js";
@@ -27,17 +27,28 @@ export async function resolveStudioDonor(req: Request, campaign: CreateCampaign,
   context.sensitiveAllowed = await can(req, "letters.view_sensitive_merge_data");
   if (!constituentId) return context;
   await demand(req, "view:constituents");
-  const person = await prisma.constituent.findFirst({ where: { id: constituentId, organizationId: org }, include: { tags: { include: { tag: true } } } });
+  const person = await prisma.constituent.findFirst({ where: { id: constituentId, organizationId: org }, include: { tags: { include: { tag: true } }, household: { select: { name: true } } } });
   if (!person) throw new CreateError(404, "Recipient not found in this organization.");
   context.mergeValues = Object.fromEntries(["firstName", "lastName", "preferredName", "displayName", "organizationName", "organizationCategory", "contactFirstName", "contactLastName", "contactTitle", "email", "phone", "addressLine1", "addressLine2", "city", "state", "zip"].map(key => [`donor.${key}`, String((person as unknown as Record<string,unknown>)[key] || "")]));
   Object.assign(context, { available: true, constituentId: person.id, name: getConstituentDisplayName(person), salutation: getConstituentSalutation(person), entityKind: person.entityKind || "INDIVIDUAL", address: [person.addressLine1, person.addressLine2, [person.city, person.state, person.zip].filter(Boolean).join(" "), person.country].filter(Boolean).join("\n"), tags: person.tags.map(item => item.tag.name) });
+  const organization = isOrganizationConstituent(person);
+  Object.assign(context.mergeValues!, {
+    "donor.firstName": organization ? context.name : person.firstName || "",
+    "donor.lastName": organization ? "" : person.lastName || "",
+    "donor.preferredName": organization ? context.name : person.firstName || "",
+    "donor.displayName": person.displayName || context.name,
+    "donor.contactFullName": getConstituentContactFullName(person),
+    "household.name": person.household?.name || (person.entityKind === "HOUSEHOLD" ? context.name : ""),
+  });
+  const staff = await prisma.user.findFirst({ where: { id: req.user!.sub, organizationId: org }, select: { firstName: true, lastName: true, jobTitle: true, email: true } });
+  Object.assign(context.mergeValues!, { "staff.fullName": staff ? `${staff.firstName} ${staff.lastName}`.trim() : "", "staff.title": staff?.jobTitle || req.user!.role?.toUpperCase() || "", "staff.email": staff?.email || "" });
   if (!context.sensitiveAllowed) return context;
   const period = givingPeriod(design, settings?.fiscalYearStart || 1);
   const selectedId = design.data.giftSelections[person.id];
   const [gifts, selectedGift, lastGift, largestGift, pledges, recurring] = await Promise.all([
-    prisma.donation.findMany({ where: { constituentId: person.id, constituent: { organizationId: org }, status: "COMPLETED", date: period }, orderBy: [{ date: "asc" }, { id: "asc" }], include: { designation: true }, take: 5001 }),
-    design.data.giftPolicy === "selected" && selectedId ? prisma.donation.findFirst({ where: { id: selectedId, constituentId: person.id, constituent: { organizationId: org }, status: "COMPLETED" }, include: { designation: true } }) : null,
-    prisma.donation.findFirst({ where: { constituentId: person.id, constituent: { organizationId: org }, status: "COMPLETED" }, orderBy: [{ date: "desc" }, { id: "desc" }], include: { designation: true } }),
+    prisma.donation.findMany({ where: { constituentId: person.id, constituent: { organizationId: org }, status: "COMPLETED", date: period }, orderBy: [{ date: "asc" }, { id: "asc" }], include: { designation: true, campaign: true, event: true }, take: 5001 }),
+    design.data.giftPolicy === "selected" && selectedId ? prisma.donation.findFirst({ where: { id: selectedId, constituentId: person.id, constituent: { organizationId: org }, status: "COMPLETED" }, include: { designation: true, campaign: true, event: true } }) : null,
+    prisma.donation.findFirst({ where: { constituentId: person.id, constituent: { organizationId: org }, status: "COMPLETED" }, orderBy: [{ date: "desc" }, { id: "desc" }], include: { designation: true, campaign: true, event: true } }),
     prisma.donation.findFirst({ where: { constituentId: person.id, constituent: { organizationId: org }, status: "COMPLETED" }, orderBy: [{ amount: "desc" }, { id: "desc" }] }),
     prisma.pledge.findMany({ where: { constituentId: person.id, constituent: { organizationId: org }, active: true, ...(campaign.fundraisingCampaignId ? { campaignId: campaign.fundraisingCampaignId } : {}) }, orderBy: { endDate: "asc" }, take: 501 }),
     prisma.donation.findFirst({ where: { constituentId: person.id, constituent: { organizationId: org }, status: "COMPLETED", isRecurring: true }, select: { id: true } }),
@@ -45,6 +56,16 @@ export async function resolveStudioDonor(req: Request, campaign: CreateCampaign,
   if (gifts.length > 5000 || pledges.length > 500) throw new CreateError(422, "This recipient has too many records for one proof. Narrow the giving period or campaign before review.");
   if (selectedId && design.data.giftPolicy === "selected" && !selectedGift) throw new CreateError(422, "The selected gift is unavailable, belongs to another recipient, or is not completed.");
   const gift = design.data.giftPolicy === "selected" ? selectedGift : lastGift;
+  const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: context.currency }).format(value);
+  const date = (value: Date | undefined | null) => value ? value.toLocaleDateString("en-US", { timeZone: "UTC" }) : "";
+  Object.assign(context.mergeValues!, {
+    "gift.campaign": gift?.campaign?.name || context.campaign?.name || "",
+    "gift.paymentMethod": gift?.paymentMethod?.replace(/_/g, " ") || "",
+    "event.name": gift?.eventId && await can(req, "view:events") ? gift.event?.name || "" : "",
+    "year.taxDeductibleTotal": money(gifts.reduce((sum, row) => sum + (row.taxDeductible ? Number(row.taxDeductibleAmount ?? row.amount) : 0), 0)),
+    "year.firstGiftDate": date(gifts[0]?.date),
+    "year.lastGiftDate": date(gifts.at(-1)?.date),
+  });
   context.gift = gift ? { id: gift.id, amount: Number(gift.amount), date: gift.date.toISOString(), fund: gift.designation?.name || "", receiptNumber: gift.receiptNumber || "", deductible: gift.taxDeductible ? Number(gift.taxDeductibleAmount ?? gift.amount) : 0 } : null;
   context.giving = { total: gifts.reduce((sum, row) => sum + Number(row.amount), 0), count: gifts.length, largest: Number(largestGift?.amount || 0), lastAmount: lastGift ? Number(lastGift.amount) : null, firstDate: gifts[0]?.date.toISOString() || null, lastDate: lastGift?.date.toISOString() || null, gifts: gifts.map(row => ({ amount: Number(row.amount), date: row.date.toISOString(), fund: row.designation?.name || "" })) };
   context.recurring = !!recurring;

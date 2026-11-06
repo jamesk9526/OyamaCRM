@@ -12,6 +12,7 @@ import { nativeRecord, syncNative, fingerprint } from "../legacy.js";
 import { importCommunication } from "../import-service.js";
 import { renderChannel } from "./channel-render.js";
 import { hydrateSourceHtml } from "./source-html.js";
+import { upgradeUnifiedDesign } from "./unified-document.js";
 import { defaultDesign, normalizeDesign, sourceIdentity } from "./design.js";
 import { paragraph } from "./registry.js";
 import { STUDIO_PRESETS, studioPreset } from "./presets.js";
@@ -23,7 +24,9 @@ import { assertStudioAssetOwnership } from "./asset-ownership.js";
 import { managedAssetIssues } from "./asset-files.js";
 import { exportHtmlDocument, importHtmlDocument, type HtmlScope } from "./html-document.js";
 import { renderRegion, regionIssues } from "./render.js";
+import { fontInventory, printFontAssets } from "./print-fonts.js";
 const router = Router();
+router.get("/studio/fonts",route(async(req,res)=>{if(!await can(req,"letters.view")&&!await can(req,"view:communications"))throw new CreateError(403,"Create access is required.");const extra=Array.isArray(req.query.font)?req.query.font:[req.query.font];if(extra.length>20)throw new CreateError(400,"Too many font checks.");res.json(await fontInventory(extra.filter((value):value is string=>typeof value==="string"&&value.length<=80)));}));
 
 function legacyDesign(content: { documentJson: unknown }): StudioDesign {
   const design = defaultDesign(), doc = documentFrom(content.documentJson);
@@ -51,7 +54,7 @@ router.post("/contents/:id/studio/convert", route(async (req, res, org, actor) =
   }
   const missingLetter=content.variants.find(item=>item.channel==="LETTER");if(missingLetter&&!missingLetter.legacyId)await demand(req,"letters.create");
   const originalVariant=content.variants.find(item=>item.channel==="LETTER"),original=originalVariant?await nativeRecord(org,originalVariant):null;
-  const design = req.body.design ? normalizeDesign(req.body.design) : req.body.presetId ? studioPreset(string(req.body.presetId)) : legacyDesign(content);
+  let design = req.body.design ? normalizeDesign(req.body.design) : req.body.presetId ? studioPreset(string(req.body.presetId)) : legacyDesign(content);
   const emailVersion=content.variants.find(item=>item.channel==="EMAIL");if(!design.email.subject)design.email.subject=emailVersion?variantFrom(emailVersion.documentJson).subject||content.name:content.name;
   assertStudioAssetOwnership(org,design);
   await assertAvailableSelections(org, design);
@@ -60,6 +63,7 @@ router.post("/contents/:id/studio/convert", route(async (req, res, org, actor) =
     const variant = content.variants.find(item => item.channel === "LETTER"), native = variant ? await nativeRecord(org, variant) : null;
     if (native?.kind === "LETTER" && native.record.printBody.trim()) design.body.content = [{ type: "studioLegacy", attrs: { studioId: "preserved-original", html: native.record.printBody } }];
   }
+  if (req.body.unified === true) design = upgradeUnifiedDesign(design);
   await prisma.$transaction(async tx => { await touchCampaign(tx, org, campaign.id, req.body.campaignRevision); const letter = content.variants.find(variant => variant.channel === "LETTER"); if (letter && !letter.legacyId) await syncNative(tx, org, actor, content, letter); await tx.createDocumentRevision.upsert({ where: { contentId_revision: { contentId: content.id, revision: content.revision } }, update: {}, create: { organizationId: org, contentId: content.id, revision: content.revision, documentJson: json({ shared: content.documentJson, legacy: true, ...(original?.kind==="LETTER"?{originalLetter:{html:original.record.printBody,subject:original.record.printSubject,templateId:original.record.id}}:{}) }), createdBy: actor } }); await tx.createContent.update({ where: { id: content.id }, data: { designJson: json(design), revision: { increment: 1 } } }); await tx.createDocumentRevision.create({ data: { organizationId: org, contentId: content.id, revision: content.revision + 1, documentJson: json({ shared: content.documentJson, studio: design }), createdBy: actor } }); });
   res.json({ design, contentRevision: content.revision + 1, campaignRevision: campaign.revision + 1, brand: await brandForDesign(org, design.brandRevisionId) });
 }));
@@ -109,6 +113,7 @@ router.post("/contents/:id/studio/preview", route(async (req, res, org) => {
   const result=renderChannel(design,donor,brand,channel as Channel,format,artifact as ArtifactKind);
   if (channel === "LETTER" && !["OUTER_ENVELOPE", "RETURN_ENVELOPE"].includes(artifact)) result.issues.push(...regionIssues(design, donor, brand));
   result.issues.push(...await managedAssetIssues(org,result.html));
+  if(channel==="LETTER"&&design.version===4)result.issues.push(...(await printFontAssets(design,[renderRegion(design,donor,brand,"firstHeader"),renderRegion(design,donor,brand,"header"),renderRegion(design,donor,brand,"firstFooter"),renderRegion(design,donor,brand,"footer")])).issues);
   res.json({...result,donor,brand,contentRevision:content.revision,channel,...(channel==="LETTER"&&!["OUTER_ENVELOPE","RETURN_ENVELOPE"].includes(artifact)?{pageChrome:{header:renderRegion(design,donor,brand,"firstHeader"),footer:renderRegion(design,donor,brand,"firstFooter")}}:{})});
 }));
 router.post("/contents/:id/studio/legacy-review",route(async(req,res,org,actor)=>{

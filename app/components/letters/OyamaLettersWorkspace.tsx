@@ -134,6 +134,7 @@ interface OyamaLettersWorkspaceProps {
   view?: WorkspaceView;
   templateId?: string;
   embedded?: boolean;
+  editorMode?: "original" | "production";
   returnHref?: string;
   onEditorState?: (value: import("@/app/components/oyama-email/EmailBuilderKit").NativeEditorState) => void;
   onSaved?: () => Promise<unknown>;
@@ -602,7 +603,7 @@ const LETTERS_SIDEBAR_ITEMS = [
 ];
 
 /** Top-level dedicated workspace shell. */
-export default function OyamaLettersWorkspace({ view = "library", templateId, embedded = false, returnHref, onEditorState, onSaved }: OyamaLettersWorkspaceProps) {
+export default function OyamaLettersWorkspace({ view = "library", templateId, embedded = false, editorMode, returnHref, onEditorState, onSaved }: OyamaLettersWorkspaceProps) {
   const [productionEnabled, setProductionEnabled] = useState<boolean | null>(null);
   useEffect(() => { let active = true; void apiFetch<{ enabled: boolean }>("/api/letters/production/config").then(value => { if (active) setProductionEnabled(value.enabled); }).catch(() => { if (active) setProductionEnabled(false); }); return () => { active = false; }; }, []);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -634,7 +635,7 @@ export default function OyamaLettersWorkspace({ view = "library", templateId, em
           {!embedded && <LettersMobileNav activeView={view} />}
           {!embedded && <LettersTopBar view={view} templateId={templateId} />}
           {view === "library" ? <TemplateLibrary /> : null}
-          {view === "builder" ? productionEnabled === null ? <p role="status" className="p-6 text-sm text-slate-600">Loading letter workspace…</p> : productionEnabled || embedded ? <ProductionBuilder templateId={templateId} returnHref={returnHref} onEditorState={onEditorState} onSaved={onSaved} /> : <TemplateBuilder templateId={templateId} /> : null}
+          {view === "builder" ? editorMode === "original" ? <TemplateBuilder templateId={templateId} onEditorState={onEditorState} onSaved={onSaved}/> : productionEnabled === null ? <p role="status" className="p-6 text-sm text-slate-600">Loading letter workspace…</p> : productionEnabled || embedded ? <ProductionBuilder templateId={templateId} returnHref={returnHref} onEditorState={onEditorState} onSaved={onSaved} /> : <TemplateBuilder templateId={templateId} /> : null}
           {view === "publish" ? <PublishWorkspace templateId={templateId} /> : null}
           {view === "generate" ? <GenerateWorkspace /> : null}
           {view === "history" ? <GeneratedLettersLibrary /> : null}
@@ -1218,7 +1219,7 @@ function TemplateLibrary() {
   );
 }
 
-function TemplateBuilder({ templateId }: { templateId?: string }) {
+function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: string; onEditorState?: OyamaLettersWorkspaceProps["onEditorState"]; onSaved?: () => Promise<unknown> }) {
   const router = useRouter();
   const editorRef = useRef<HTMLDivElement | null>(null);
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
@@ -1601,6 +1602,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
         setSavedDraft(payload);
         clearTemplateRecoverySnapshot(templateId);
         setNotice("Template saved.");
+        await onSaved?.();
         return templateId;
       }
       const created = await apiFetch<LetterTemplateDetail>("/api/letters/templates", { method: "POST", body: JSON.stringify(payload) });
@@ -2482,6 +2484,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   }, [draft.printBody, inlineSuggestEnabled, loading, previewMode]);
 
   const dirty = draftDiffers(draft, savedDraft);
+  useEffect(() => { onEditorState?.({dirty, save: async () => !dirty || !saving && !!await save()}); });
   const editorPdfStale = Boolean(
     editorPdfUrl
     && editorPdfFingerprint !== pdfPreviewFingerprint(draft, testConstituentId),

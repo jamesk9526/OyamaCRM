@@ -2,13 +2,13 @@
 export type StudioNode = { type: string; text?: string; attrs?: Record<string, unknown>; marks?: Array<{ type: string; attrs?: Record<string, unknown> }>; content?: StudioNode[] };
 export type StudioDoc = StudioNode & { type: "doc"; content: StudioNode[] };
 export type ArtifactKind = "LETTER" | "REPLY_SLIP" | "OUTER_ENVELOPE" | "RETURN_ENVELOPE";
-export type StudioPage = { paper: "LETTER" | "A4" | "LEGAL"; orientation: "portrait" | "landscape"; margins: { top: number; right: number; bottom: number; left: number }; headerHeight: number; footerHeight: number };
-export type StudioStyles = { font: "Inter" | "Noto Serif"; emailFont: string; fontSize: number; lineHeight: number; color: string; primary: string; accent: string; background: string; paragraphSpacing: number };
+export type StudioPage = { paper: "LETTER" | "A4" | "LEGAL" | "HALF_LETTER"; orientation: "portrait" | "landscape"; margins: { top: number; right: number; bottom: number; left: number }; headerHeight: number; footerHeight: number };
+export type StudioStyles = { font: string; emailFont: string; fontSize: number; lineHeight: number; color: string; primary: string; accent: string; background: string; paragraphSpacing: number };
 export type StudioRegion = { mode: "brand" | "custom" | "none"; presetId: string; content: StudioDoc };
 export type StudioEnvelope = { enabled: boolean; size: "#10" | "#9" | "DL"; window: boolean; addressX: number; addressY: number; addressWidth: number; offsetX: number; offsetY: number };
 export type StudioPresentation = { emailWidth?: number; emailBackground?: string; suppressEmailChrome?: boolean; emailIncludesFooter?: boolean; sourceRevisionId?: string };
 export type StudioDesign = {
-  version: 2 | 3;
+  version: 2 | 3 | 4;
   body: StudioDoc;
   channels?: Partial<Record<"LETTER" | "EMAIL" | "WEB" | "SOCIAL" | "SMS", { document: StudioDoc; reviewedSource: string | null; sourceRevisionId?: string; presentation?: StudioPresentation }>>;
   presentation?: StudioPresentation;
@@ -37,6 +37,6 @@ export type DonorContext = {
   tags: string[]; recurring: boolean | null; responseCode: string; asOf: string;
 };
 export type StudioRender = { html: string; text: string; subject?:string; issues: StudioIssue[]; adaptations: StudioIssue[]; decisions: Array<{ nodeId: string; rule: string; result: string }> };
-export type FrozenStudioPrint = { sensitive?:boolean; version: 1; kind: ArtifactKind; width: number; height: number; margins: StudioPage["margins"]; styles: StudioStyles; html: string; headers: [string, string]; footers: [string, string]; assets: Record<string, string>; issues: StudioIssue[]; responseCode: string; brandRevisionId: string | null };
+export type FrozenStudioPrint = { sensitive?:boolean; version: 1 | 2; kind: ArtifactKind; width: number; height: number; margins: StudioPage["margins"]; styles: StudioStyles; html: string; headers: [string, string]; footers: [string, string]; assets: Record<string, string>; issues: StudioIssue[]; responseCode: string; brandRevisionId: string | null };
 export const EMPTY_DOC = (): StudioDoc => ({ type: "doc", content: [] });
-export const STUDIO_NODE_TYPES = ["doc", "paragraph", "heading", "text", "hardBreak", "bulletList", "orderedList", "listItem", "blockquote", "horizontalRule", "image", "table", "tableRow", "tableCell", "tableHeader", "studioSignature", "studioAsk", "studioGiving", "studioHistory", "studioReceipt", "studioPledge", "studioProgress", "studioAddress", "studioSalutation", "studioField", "studioQr", "studioResponse", "studioCondition", "studioGroup", "studioColumns", "studioColumn", "studioCallout", "studioImpact", "letterPageBreak", "letterSpacer", "studioLegacy", "studioHtml", "studioButton", "studioFile", "studioVideo", "studioSocial"] as const;
+export const STUDIO_NODE_TYPES = ["doc", "mergeField", "paragraph", "heading", "text", "hardBreak", "bulletList", "orderedList", "listItem", "blockquote", "horizontalRule", "image", "table", "tableRow", "tableCell", "tableHeader", "studioSignature", "studioAsk", "studioGiving", "studioHistory", "studioReceipt", "studioPledge", "studioProgress", "studioAddress", "studioSalutation", "studioField", "studioQr", "studioResponse", "studioCondition", "studioGroup", "studioColumns", "studioColumn", "studioCallout", "studioImpact", "letterPageBreak", "letterSpacer", "studioLegacy", "studioHtml", "studioButton", "studioFile", "studioVideo", "studioSocial"] as const;

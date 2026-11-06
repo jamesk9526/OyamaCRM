@@ -8,7 +8,7 @@ import { STUDIO_BLOCKS, newBlock } from "@/server/src/oyama-create/studio/regist
 import type { StudioNode } from "@/server/src/oyama-create/studio/types";
 import { blockDestinations, deleteStudioBlock, duplicateStudioBlock, moveStudioBlock, moveStudioSibling, selectedStudioBlock, studioBlocks } from "./block-actions";
 
-export default function StudioCanvasControls({ editor, onInsertRequest }: { editor: Editor; onInsertRequest?: (node: StudioNode) => void }) {
+export default function StudioCanvasControls({ editor, onInsertRequest, quiet = false }: { quiet?: boolean; editor: Editor; onInsertRequest?: (node: StudioNode) => void }) {
   const [inserting, setInserting] = useState<number | null>(null);
   const [query, setQuery] = useState("");
   const [moving, setMoving] = useState(false);
@@ -54,7 +54,7 @@ export default function StudioCanvasControls({ editor, onInsertRequest }: { edit
   }
   const tool = (label: string, Icon: typeof Plus, run: () => void) => <button type="button" className="cs-tool" aria-label={label} title={label} onMouseDown={event => event.preventDefault()} onClick={run}><Icon size={15}/></button>;
   return createPortal(<>
-    {point && selected && (snapshot.focused || moving || inserting !== null) && <div className="cs-canvas-block-tools" role="toolbar" aria-label="Selected block actions" style={{ position: "fixed", zIndex: 90, left: point.left, top: point.top }}>
+    {!quiet && point && selected && (snapshot.focused || moving || inserting !== null) && <div className="cs-canvas-block-tools" role="toolbar" aria-label="Selected block actions" style={{ position: "fixed", zIndex: 90, left: point.left, top: point.top }}>
       {snapshot.from !== snapshot.to && !selected.node.isAtom && <>{tool("Bold selected text", Bold, () => { editor.chain().focus().toggleBold().run(); })}{tool("Italic selected text", Italic, () => { editor.chain().focus().toggleItalic().run(); })}{tool("Underline selected text", Underline, () => { editor.chain().focus().toggleUnderline().run(); })}</>}
       <button type="button" className="cs-tool" draggable aria-label={`Drag ${selected.label}`} title={`Drag ${selected.label}`} onDragStart={event => { event.dataTransfer.setData("application/studio-block", id); event.dataTransfer.effectAllowed = "move"; editor.view.dom.setAttribute("data-studio-dragging", id); }} onDragEnd={() => { setDrop(null); editor.view.dom.removeAttribute("data-studio-dragging"); editor.view.dom.removeAttribute("data-studio-drop-position"); }}><GripVertical size={15}/></button>
       {tool("Insert after selected block", Plus, () => { setQuery(""); setInserting(selected.position + selected.node.nodeSize); })}

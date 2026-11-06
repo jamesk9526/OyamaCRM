@@ -45,7 +45,7 @@ router.get("/bootstrap", route(async (req, res, org) => {
   const permissions = PERMISSION_KEYS.filter(key => overrides.find(row => row.permission === key)?.granted ?? hasDefaultPermission(req.user!.role, key));
   if (!["view:communications", "letters.view", "view:campaigns"].some(key => permissions.includes(key as typeof permissions[number]))) throw new CreateError(403, "Communications, letters, or fundraising access is required.");
   const settings = await prisma.organizationSettings.findUnique({ where: { organizationId: org } });
-  res.json({ enabled: settings?.oyamaCreateEnabled === true, studioEnabled: settings?.oyamaCreateStudioEnabled === true, brandHubEnabled: settings?.oyamaCreateBrandHubEnabled === true, permissions, capabilities: CHANNELS.map(channel => ({ channel, available: true, requiresConnection: ["SMS", "SOCIAL"].includes(channel), previews: channel === "EMAIL" ? ["desktop", "mobile", "plain-text"] : channel === "LETTER" ? ["pdf"] : ["content"] })) });
+  res.json({ enabled: settings?.oyamaCreateEnabled === true, studioEnabled: settings?.oyamaCreateStudioEnabled === true, shellEnabled: settings?.oyamaCreateV5ShellEnabled === true, unifiedEditorEnabled: settings?.oyamaCreateUnifiedEditorEnabled === true, brandHubEnabled: settings?.oyamaCreateBrandHubEnabled === true, permissions, capabilities: CHANNELS.map(channel => ({ channel, available: true, requiresConnection: ["SMS", "SOCIAL"].includes(channel), previews: channel === "EMAIL" ? ["desktop", "mobile", "plain-text"] : channel === "LETTER" ? ["pdf"] : ["content"] })) });
 }));
 router.put("/config", route(async (req, res, org) => {
   await demand(req, "create.connections.manage");

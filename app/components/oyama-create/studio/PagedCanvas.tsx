@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import { emptyDonor, renderStudio } from "@/server/src/oyama-create/studio/render";
 import type { StudioDesign } from "@/server/src/oyama-create/studio/types";
 import { flowPageCount, paginationMetrics, studioContentCss, studioRegionCss } from "@/server/src/oyama-create/studio/layout";
@@ -18,7 +18,9 @@ function PageRegion({ design, footer, first, html, onEdit }: { design: StudioDes
   </div>;
 }
 
-export default function PagedCanvas({ design, children, headers, footers, zoom, onPages, onRegion }: { design: StudioDesign; children: ReactNode; headers: [string, string]; footers: [string, string]; zoom: number; onPages: (count: number) => void; onRegion: (key: keyof StudioDesign["regions"]) => void }) {
+type CanvasProps = { design: StudioDesign; children: ReactNode; headers: [string, string]; footers: [string, string]; zoom: number; onPages: (count: number) => void; onRegion: (key: keyof StudioDesign["regions"]) => void; vertical?: boolean };
+export default function PagedCanvas(props: CanvasProps) { return props.vertical ? <VerticalPagedCanvas {...props}/> : <HorizontalPagedCanvas {...props}/>; }
+function HorizontalPagedCanvas({ design, children, headers, footers, zoom, onPages, onRegion }: CanvasProps) {
   const rail = useRef<HTMLDivElement>(null), flow = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState(1), [issue, setIssue] = useState("");
   const [currentPage,setCurrentPage]=useState(1);
@@ -67,4 +69,35 @@ export default function PagedCanvas({ design, children, headers, footers, zoom, 
     </div>)}
     <div ref={flow} className="cs-flow-origin" style={{ position: "absolute", left: design.page.margins.left * 96, top: design.page.margins.top * 96, width: metrics.bodyWidth, height: metrics.bodyHeight }}>{children}</div>
   </div></div></div><PageThumbnailBar pages={pages} current={Math.min(currentPage,pages)} html={thumbnailHtml} metrics={metrics} onSelect={selectPage}/></div>;
+}
+
+
+function VerticalPagedCanvas({design, children, headers, footers, zoom, onPages, onRegion}: CanvasProps) {
+  const rail = useRef<HTMLDivElement>(null), [width,setWidth]=useState(0), [pages,setPages]=useState(1),[issue,setIssue]=useState("");
+  const metrics=paginationMetrics(design), pitch=metrics.height+28;
+  const previousScale=useRef(1);
+  const scale=zoom?zoom/100:Math.max(.5,Math.min(1.3,Math.floor((width-55)/metrics.width*20)/20));
+  useEffect(()=>{rail.current?.dispatchEvent(new CustomEvent("create-page-scale",{bubbles:true,detail:Math.round(scale*100)}));},[scale]);
+  useLayoutEffect(()=>{if(rail.current&&previousScale.current!==scale){rail.current.scrollTop*=scale/previousScale.current;rail.current.scrollLeft*=scale/previousScale.current;}previousScale.current=scale;},[scale]);
+  useEffect(()=>{const element=rail.current;if(!element)return;const observer=new ResizeObserver(([entry])=>setWidth(entry.borderBoxSize[0]?.inlineSize||entry.contentRect.width));observer.observe(element);return()=>observer.disconnect();},[]);
+  useEffect(()=>{
+    const element=rail.current;if(!element)return;
+    const layout=(event:Event)=>{const detail=(event as CustomEvent<{pages:number;issue?:string}>).detail;const count=detail.pages;setIssue(detail.issue||"");setPages(count);onPages(count);};
+    const jump=(event:Event)=>element.scrollTo({top:((event as CustomEvent<number>).detail-1)*pitch*scale,behavior:"instant"});
+    element.addEventListener("create-page-layout",layout);element.addEventListener("create-jump-page",jump);
+    const editor=element.querySelector(".cs-editable");editor?.dispatchEvent(new Event("create-measure-pages"));
+    return()=>{element.removeEventListener("create-page-layout",layout);element.removeEventListener("create-jump-page",jump);};
+  },[onPages,pitch,scale]);
+  const chrome=(html:string,page:number)=>html.replace(/(<span[^>]*data-studio-page-number[^>]*>)[\s\S]*?<\/span>/g,`$1${page}</span>`).replace(/(<span[^>]*data-studio-total-pages[^>]*>)[\s\S]*?<\/span>/g,`$1${pages}</span>`);
+  return <div className="cs-paged-canvas cv5-vertical">{issue&&<div className="oc-error cs-page-warning" role="alert">{issue}</div>}<div className="cs-page-rail" ref={rail} role="region" aria-label="Document pages" tabIndex={0} onScroll={()=>{if(rail.current)rail.current.dispatchEvent(new CustomEvent("create-page-position",{bubbles:true,detail:Math.max(1,Math.min(pages,Math.floor(rail.current.scrollTop/(pitch*scale))+1))}));}}>
+    <div className="cv5-paper-frame" style={{width:metrics.width*scale,height:(pages*pitch-28)*scale}}><div className="cv5-paper-track" style={{width:metrics.width,height:pages*pitch-28,transform:`scale(${scale})`,transformOrigin:"top left"}}>
+      <style>{studioContentCss(design,".cv5-flow .cs-editable")}{studioRegionCss(".cv5-paper-track .cs-paper-region-content")}{`.cv5-flow .cs-editable{width:${metrics.bodyWidth}px!important;height:auto!important;min-height:${metrics.bodyHeight}px;columns:auto!important;padding:0!important;outline:none}.cv5-flow [data-letter-page-break]{break-before:auto!important;height:0!important;min-height:0!important;margin:0!important;padding:0!important}.cv5-flow .cs-block-label{display:none}`}</style>
+      {Array.from({length:pages},(_,index)=><div className="cs-paper-page" data-page-number={index+1} key={index} style={{top:index*pitch,width:metrics.width,height:metrics.height,background:design.styles.background,"--guide-top":`${design.page.margins.top*96}px`,"--guide-right":`${design.page.margins.right*96}px`,"--guide-bottom":`${design.page.margins.bottom*96}px`,"--guide-left":`${design.page.margins.left*96}px`} as CSSProperties}>
+        <div className="cv5-ruler" aria-hidden="true">{Array.from({length:Math.ceil(metrics.width/96)},(_,i)=><span key={i} style={{left:i*96}}>{i}</span>)}</div>
+        <PageRegion design={design} first={!index} html={chrome(headers[index?1:0],index+1)} onEdit={()=>onRegion(index?"header":"firstHeader")}/>
+        <PageRegion design={design} footer first={!index} html={chrome(footers[index?1:0],index+1)} onEdit={()=>onRegion(index?"footer":"firstFooter")}/>
+      </div>)}
+      <div className="cv5-flow" style={{position:"absolute",left:design.page.margins.left*96,top:design.page.margins.top*96,width:metrics.bodyWidth}}>{children}</div>
+    </div></div>
+  </div></div>;
 }

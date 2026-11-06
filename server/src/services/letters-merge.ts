@@ -215,6 +215,11 @@ export const COMPATIBILITY_LETTER_MERGE_FIELDS = [
  * These aliases are normalized to canonical merge keys at render/validation time.
  */
 const LEGACY_LETTER_MERGE_FIELD_ALIASES: Readonly<Record<string, string>> = {
+  "contact.salutation": "donor.salutation",
+  "contact.first_name": "donor.firstName",
+  "contact.last_name": "donor.lastName",
+  "contact.mailing_address": "donor.addressBlock",
+  "organization.signer_name": "staff.fullName",
   "donor.first": "donor.firstName",
   "donor.last": "donor.lastName",
   "donor.name": "donor.fullName",
@@ -256,7 +261,7 @@ function canonicalizeMergeFieldKey(key: string): string {
   const normalized = key.trim();
   return SIMPLE_LETTER_MERGE_FIELD_ALIASES[normalized]
     ?? LEGACY_LETTER_MERGE_FIELD_ALIASES[normalized]
-    ?? normalized;
+    ?? (normalized.startsWith("constituent.") ? `donor.${normalized.slice(12)}` : normalized);
 }
 
 function formatDateValue(value: string, format: string): string {
@@ -342,6 +347,7 @@ export function unsupportedMergeFieldKeys(keys: string[]): string[] {
 export interface RenderMergeFieldsOptions {
   missingMode?: "blank" | "highlight" | "preserve";
   missingFields?: Set<string>;
+  additionalFields?: readonly string[];
 }
 
 /** Replaces all supported placeholders while leaving unsupported tokens untouched.
@@ -351,7 +357,7 @@ export function renderMergeFields(template: string, values: Record<string, strin
   const renderToken = (displayKey: string, rawFilters: string | undefined, original: string): string => {
     const normalized = String(displayKey ?? "").trim();
     const canonical = canonicalizeMergeFieldKey(normalized);
-    if (!FIELD_SET.has(canonical)) return original;
+    if (!FIELD_SET.has(canonical) && !options.additionalFields?.includes(canonical)) return original;
     const filtered = applyMergeFilters(values[canonical] ?? "", parseFilters(rawFilters));
     if (!filtered.trim()) {
       options.missingFields?.add(canonical);

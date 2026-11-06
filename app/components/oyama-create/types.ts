@@ -1,6 +1,6 @@
 import type { Channel, SharedDocument, VariantDocument } from "@/server/src/oyama-create/domain";
 export type { Channel, SharedDocument, VariantDocument };
-export type Bootstrap = { enabled: boolean; studioEnabled?: boolean; brandHubEnabled?: boolean; permissions: string[]; capabilities: Array<{ channel: Channel; available: boolean; requiresConnection: boolean; previews: string[] }> };
+export type Bootstrap = { enabled: boolean; shellEnabled?: boolean; unifiedEditorEnabled?: boolean; studioEnabled?: boolean; brandHubEnabled?: boolean; permissions: string[]; capabilities: Array<{ channel: Channel; available: boolean; requiresConnection: boolean; previews: string[] }> };
 export type Audience = { id: string; name: string; description: string | null; _count: { recipients: number } };
 export type Variant = { id: string; channel: Channel; revision: number; documentJson: VariantDocument; needsReview: boolean; externalChanges?: boolean; nativeApproved: boolean; legacyId: string | null };
 export type Content = { id: string; name: string; campaignId: string; revision: number; documentJson: SharedDocument; designJson?: import("@/server/src/oyama-create/studio/types").StudioDesign|null; scheduledAt: string | null; variants: Variant[] };

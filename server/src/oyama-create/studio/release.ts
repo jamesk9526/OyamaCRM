@@ -12,7 +12,8 @@ import { normalizeDesign, emailReviewRequired, walkNodes } from "./design.js";
 import { hydrateSourceHtml } from "./source-html.js";
 import { renderChannel } from "./channel-render.js";
 import { brandForStudio } from "./brand-service.js";
-import { renderStudio, renderEmailDocument, emptyDonor, designSensitive, regionIssues } from "./render.js";
+import { printFontAssets } from "./print-fonts.js";
+import { renderRegion, renderStudio, renderEmailDocument, emptyDonor, designSensitive, regionIssues } from "./render.js";
 import { resolveStudioDonor } from "./donor.js";
 import { freezeStudioPrint } from "./print.js";
 import { managedAssetIssues } from "./asset-files.js";
@@ -20,6 +21,10 @@ import type { BrandDocument, StudioDesign, ArtifactKind } from "./types.js";
 export type FrozenStudio = { design: StudioDesign; brand: BrandDocument; templateId: string; channelBrands?: Partial<Record<Channel,BrandDocument>> };
 export async function prepareStudioRelease(req: Request, campaign: CreateCampaign, content: CreateContent & { variants: CreateVariant[] }, recipients: PlannedRecipient[]) {
   const design = await hydrateSourceHtml(req,campaign.organizationId,normalizeDesign(content.designJson)), brand = await brandForStudio(campaign.organizationId, design), issues: Array<{channel:string;message:string}> = [];
+  if(design.version===4&&(campaign.channelsJson as string[]).includes("LETTER")){
+    const fonts=await printFontAssets(design,(["firstHeader","header","firstFooter","footer"] as const).map(key=>renderRegion(design,emptyDonor(),brand,key)));
+    issues.push(...fonts.issues.map(issue=>({channel:"LETTER",message:issue.message})));
+  }
   if (designSensitive(design)) await demand(req, "letters.view_sensitive_merge_data");
   if (recipients.length > 1500) throw new CreateError(422, "Studio releases support up to 1,500 channel deliveries per content piece. Split a larger audience into reviewed releases.");
   if (walkNodes(design.body).some(node=>node.type==="studioLegacy")) issues.push({channel:"ALL",message:`${content.name}: review the preserved original's structured conversion.`});

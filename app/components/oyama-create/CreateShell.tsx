@@ -8,6 +8,7 @@ import { apiFetch } from "@/app/lib/auth-client";
 import type { Bootstrap } from "./types";
 import { message } from "./types";
 import "./oyama-create.css";
+import "./v5/workspace-v5.css";
 import AutomaticImport from "./AutomaticImport";
 import BrowserRecovery from "./BrowserRecovery";
 const CreateContext = createContext<Bootstrap>({ enabled: false, permissions: [], capabilities: [] });
@@ -29,7 +30,7 @@ export default function CreateShell({ children }: { children: ReactNode }) {
   useEffect(() => { const refresh = () => setAttempt(value => value + 1); window.addEventListener("oyama-create-config-updated", refresh); return () => window.removeEventListener("oyama-create-config-updated", refresh); }, []);
   if (loading) return <div className="oc-loading" role="status">Opening oyamaCreate…</div>;
   if (!user) return <div className="oc-loading"><h1>Sign in to oyamaCreate</h1><Link href="/login?next=%2Foyama-create">Sign in</Link></div>;
-  return <div className="oc-app"><a className="oc-skip" href="#oc-main">Skip to workspace</a>
+  return <div className={`oc-app ${bootstrap?.shellEnabled?"cv5-app":""}`}><a className="oc-skip" href="#oc-main">Skip to workspace</a>
     <header className="oc-topbar"><div className="oc-brand"><button className="oc-icon-button oc-menu-button" aria-label={open ? "Close navigation" : "Open navigation"} aria-expanded={open} onClick={() => setOpen(!open)}>{open ? <X size={20}/> : <Menu size={20}/>}</button><span className="oc-brand-mark"><Sparkles size={21} aria-hidden="true"/></span><Link href="/oyama-create" aria-label="oyamaCreate home">oyama<span>Create</span></Link><span className="oc-product-label">COMMUNICATIONS</span></div><div className="oc-toplinks"><Link href="/apps"><FolderOpen size={15}/>All apps</Link><span className="oc-avatar" title={`${user.firstName} ${user.lastName}`}>{user.firstName?.[0]}{user.lastName?.[0]}</span></div></header>
     {open && <button className="oc-nav-scrim" aria-label="Close navigation" onClick={() => setOpen(false)}/>}
     <aside className={`oc-sidebar ${open ? "is-open" : ""}`}><div className="oc-nav-label">CREATE & CONNECT</div><nav aria-label="oyamaCreate">{nav.map(item => <Link key={item.href} href={item.href} onClick={() => setOpen(false)} aria-current={pathname === item.href || (item.href !== "/oyama-create" && pathname.startsWith(item.href)) ? "page" : undefined}><item.icon size={18} aria-hidden="true"/>{item.label}</Link>)}</nav><div className="oc-sidebar-bottom">{bootstrap?.permissions.includes("letters.view") && <Link href="/oyama-letters"><FileText size={16}/>OyamaLetters</Link>}{bootstrap?.permissions.includes("view:communications") && <Link href="/oyama-email"><Mail size={16}/>OyamaEmail</Link>}<p>A thoughtful message.<br/>Every channel, connected.</p><Link href="/steward-paths"><Sparkles size={16}/>Steward Paths</Link><Link href="/"><ArrowLeft size={16}/>Donor CRM</Link></div></aside>

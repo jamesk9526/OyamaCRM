@@ -6,7 +6,7 @@ export function useDraftGuard(dirty: boolean) {
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
     const anchor = (event: MouseEvent) => {
       const link = (event.target as HTMLElement).closest<HTMLAnchorElement>("a[href]");
-      if (!link || link.target === "_blank" || link.download || link.href === location.href || link.hash && new URL(link.href).pathname === location.pathname) return;
+      if (!link || link.dataset.flushDraft === "true" || link.target === "_blank" || link.download || link.href === location.href || link.hash && new URL(link.href).pathname === location.pathname) return;
       if (!window.confirm("Leave this workspace with unsaved changes? Your last saved server draft is retained.")) { event.preventDefault(); event.stopPropagation(); }
     };
     window.addEventListener("beforeunload", warn); document.addEventListener("click", anchor, true);

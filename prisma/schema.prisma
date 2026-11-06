@@ -613,9 +613,23 @@ model CreateContent {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   campaign       CreateCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  note           CreateContentNote?
   revisions      CreateDocumentRevision[]
   variants       CreateVariant[]
   @@index([organizationId, campaignId])
+}
+
+model CreateContentNote {
+  id String @id @default(cuid())
+  organizationId String
+  contentId String @unique
+  text String @db.LongText
+  revision Int @default(1)
+  updatedBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  content CreateContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  @@index([organizationId, contentId])
 }
 
 model CreateDocumentRevision {
@@ -853,6 +867,8 @@ model CreatePrintArtifact {
 model OrganizationSettings {
   id                          String   @id @default(cuid())
   organizationId              String   @unique
+  oyamaCreateV5ShellEnabled Boolean @default(false)
+  oyamaCreateUnifiedEditorEnabled Boolean @default(false)
   oyamaCreateStudioEnabled     Boolean  @default(false)
   oyamaCreateBrandHubEnabled   Boolean  @default(false)
   createBrandPublicBaselineId String?

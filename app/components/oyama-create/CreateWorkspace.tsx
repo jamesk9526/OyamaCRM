@@ -7,6 +7,7 @@ import { apiFetch } from "@/app/lib/auth-client";
 import { ArrowRight, CalendarDays, CheckCheck, FileText, Globe, Mail, Megaphone, Plus, Search, Sparkles, Users } from "lucide-react";
 import { useCreate } from "./CreateShell";
 import { useCreateData } from "./use-create-data";
+import QuickStart from "./v5/QuickStart";
 import CampaignForm from "./CampaignForm";
 import { Channels, Empty, Heading, Status } from "./ui";
 import { objectives, message, type Audience, type Campaign } from "./types";
@@ -46,7 +47,7 @@ export default function CreateWorkspace({ segments }: { segments: string[] }) {
   return <Empty title="Workspace view not found" action={<Link className="oc-button" href="/oyama-create">Go to Home</Link>}>Choose a destination from oyamaCreate navigation.</Empty>;
 }
 function CampaignList({ home = false, template = false, results = false }: { home?: boolean; template?: boolean; results?: boolean }) {
-  const { permissions } = useCreate(); const router = useRouter();
+  const { permissions, shellEnabled } = useCreate(); const router = useRouter();
   const [create, setCreate] = useState(false), [search, setSearch] = useState(""), [filter, setFilter] = useState("ALL");
   const resource = useCreateData<{ items: Campaign[]; hasMore: boolean; nextCursor: string|null }>(`/api/oyama-create/campaigns?templates=${template}&q=${encodeURIComponent(search)}&status=${filter==="ALL"?"":filter}`);
   const [moreBusy,setMoreBusy]=useState(false),[moreError,setMoreError]=useState("");
@@ -55,6 +56,7 @@ function CampaignList({ home = false, template = false, results = false }: { hom
   const editable = permissions.includes("edit:communications") || permissions.includes("letters.create");
   return <><Heading title={home ? "A home for every message." : template ? "Your creative library" : results ? "Campaign results" : "Campaigns"} eyebrow={home ? "OYAMACREATE" : undefined} subtitle={home ? "Bring your audience, your story, and every channel together." : template ? "Reusable campaign templates, original content, assets, and organization branding." : results ? "Review real delivery outcomes, form responses, and linked fundraising results." : "Plan, create, review, and deliver your outreach in one place."} action={editable && <button className="oc-button primary" onClick={() => setCreate(true)}><Plus size={15}/>{template ? "New template" : "New campaign"}</button>}/>
     {resource.error && <div className="oc-error" role="alert">{resource.error} <button className="oc-button small" onClick={() => void resource.reload()}>Try again</button></div>}
+    {home&&shellEnabled&&<QuickStart/>}
     {home && <><section className="oc-card oc-welcome"><div><div className="oc-eyebrow">START HERE</div><h2>How to create and deliver a campaign</h2><p>A campaign brings your message, formats and recipients into one reviewed delivery plan.</p><ol className="oc-start-guide"><li><strong>Set up your campaign.</strong> Choose Start a campaign, give it a name and select the channels you need.</li><li><strong>Build your message.</strong> Add a content piece, write your copy and check each format’s layout.</li><li><strong>Choose your audience.</strong> Select saved CRM lists and check delivery dates and contact eligibility.</li><li><strong>Review, approve and release.</strong> Fix any issues, approve the plan, then explicitly release it. Follow progress in Delivery and Results.</li></ol><div className="oc-actions"><button className="oc-button primary" onClick={() => setCreate(true)} disabled={!editable}>Start a campaign <ArrowRight size={14}/></button><Link className="oc-button" href="/oyama-create/library">Use a template</Link></div></div><div className="oc-channel-art" aria-hidden="true"><span><FileText size={29}/></span><span><Mail size={30}/></span><span><Globe size={27}/></span></div></section><div className="oc-stats">{[
       ["Draft campaigns", items.filter(item => item.status === "DRAFT").length, FileText], ["Approved for release", items.filter(item => item.status === "APPROVED").length, CheckCheck], ["Active campaigns", items.filter(item => item.status === "ACTIVE").length, Megaphone], ["Content pieces", items.reduce((sum, item) => sum + (item._count?.contents || 0), 0), Sparkles],
     ].map(([label, count, Icon]) => { const StatIcon = Icon as typeof FileText; return <div key={String(label)} className="oc-card oc-stat"><div className="oc-stat-label">{String(label)}<StatIcon size={16}/></div><strong>{resource.loading ? "—" : String(count)}</strong><small>Across recent campaigns</small></div>; })}</div></>}

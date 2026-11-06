@@ -1,12 +1,13 @@
+import { studioFont } from "./fonts.js";
 import { restoreLegacyLogoBounds, sanitizeStudioHtml } from "./html.js";
 import { escapeHtml, string } from "../domain.js";
 import { collectMergeFieldKeys, renderMergeFields } from "../../services/letters-merge.js";
-import { color, emailReviewRequired, number, walkNodes, channelDesign, channelReviewRequired } from "./design.js";
+import { DONOR_FIELDS, color, emailReviewRequired, number, walkNodes, channelDesign, channelReviewRequired } from "./design.js";
 import type { BrandDocument, DonorContext, StudioDesign, StudioIssue, StudioNode, StudioRender, ArtifactKind } from "./types.js";
 
 export function emptyDonor(asOf = new Date().toISOString()): DonorContext { return { available: false, sensitiveAllowed: false, constituentId: null, name: "", salutation: "", address: "", entityKind: "", gift: null, giving: null, pledge: null, campaign: null, tags: [], recurring: null, responseCode: "", asOf }; }
 export function plainText(html: string): string { return html.replace(/<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, "$2 ($1)").replace(/<img\b[^>]*alt="([^"]*)"[^>]*>/gi, "[$1]").replace(/<br\s*\/?\s*>|<\/(?:p|div|h[1-6]|tr|li|blockquote)>/gi, "\n").replace(/<[^>]*>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&").replace(/\n{3,}/g, "\n\n").trim(); }
-export function designSensitive(design: StudioDesign): boolean { if ([design.body,...Object.values(design.channels||{}).map(channel=>channel.document),design.pack.replySlip.content,...Object.values(design.email.overrides),...Object.values(design.regions).map(region=>region.content)].flatMap(walkNodes).some(node=>(node.type==="text"||node.type==="studioHtml")&&collectMergeFieldKeys(node.text||string(node.attrs?.html)).some(key=>/^(gift\.|year\.|donor\.(?:total|lifetime))/.test(key)))) return true; return [design.body, ...Object.values(design.channels||{}).map(channel=>channel.document), design.pack.replySlip.content, ...Object.values(design.regions).map(region => region.content), ...Object.values(design.email.overrides)].flatMap(walkNodes).some(node => ["studioReceipt", "studioHistory", "studioPledge"].includes(node.type) || node.type === "studioAsk" && node.attrs?.basis !== "fixed" || node.type === "studioField" && /^(gift|giving|pledge)\./.test(string(node.attrs?.field)) || node.type === "studioCondition" && ["hasGiving", "hasGift", "hasPledge", "recurring", "givingTotal", "lastGiftBefore"].includes(string(node.attrs?.field))); }
+export function designSensitive(design: StudioDesign): boolean { if ([design.body,...Object.values(design.channels||{}).map(channel=>channel.document),design.pack.replySlip.content,...Object.values(design.email.overrides),...Object.values(design.regions).map(region=>region.content)].flatMap(walkNodes).some(node=>(node.type==="text"||node.type==="studioHtml"||node.type==="mergeField")&&collectMergeFieldKeys(node.text||string(node.attrs?.html)||string(node.attrs?.rawToken)).some(key=>/^(gift\.|giving\.|pledge\.|year\.|donor\.(?:total|lifetime))/.test(key)))) return true; return [design.body, ...Object.values(design.channels||{}).map(channel=>channel.document), design.pack.replySlip.content, ...Object.values(design.regions).map(region => region.content), ...Object.values(design.email.overrides)].flatMap(walkNodes).some(node => ["studioReceipt", "studioHistory", "studioPledge"].includes(node.type) || node.type === "studioAsk" && node.attrs?.basis !== "fixed" || node.type === "studioField" && /^(gift|giving|pledge)\./.test(string(node.attrs?.field)) || node.type === "studioCondition" && ["hasGiving", "hasGift", "hasPledge", "recurring", "givingTotal", "lastGiftBefore"].includes(string(node.attrs?.field))); }
 export function givingLink(design: StudioDesign, amount?: number, responseCode?: string): string {
   if (!design.data.givingUrl) return "";
   const url = new URL(design.data.givingUrl, "https://studio.invalid");
@@ -28,8 +29,14 @@ export function renderStudio(design: StudioDesign, donor: DonorContext, brand: B
   const needsSensitive = (node: StudioNode) => donor.sensitiveAllowed ? "" : issue(node, "DONOR_PERMISSION", "Giving details require sensitive donor-data permission.");
   function field(node: StudioNode, key: string): string {
     if (isPublic && !["campaign.name", "asOf"].includes(key)) return issue(node, "PRIVATE_CHANNEL", "Recipient data is restricted to the letter and email versions.");
-    if (/^(gift|giving|pledge)\./.test(key) && !donor.sensitiveAllowed) return needsSensitive(node);
+    if(key==="ask.suggested"){
+      const rule=walkNodes(design.body).find(item=>item.type==="studioAsk");
+      if(!rule)return issue(node,"ASK_AMOUNTS","Configure an ask ladder before using the suggested ask field.");
+      const values=asks(rule);return values.length?e(money(values[0])):"";
+    }
+    if (/^(gift|giving|pledge|year)\./.test(key) && !donor.sensitiveAllowed) return needsSensitive(node);
     const values: Record<string, string | number | null | undefined> = { name: donor.name, salutation: donor.salutation, address: donor.address, entityKind: donor.entityKind, "gift.amount": donor.gift ? money(donor.gift.amount) : null, "gift.date": donor.gift ? date(donor.gift.date) : null, "gift.fund": donor.gift?.fund, "gift.receiptNumber": donor.gift?.receiptNumber, "gift.deductible": donor.gift?.deductible == null ? null : money(donor.gift.deductible), "giving.total": donor.giving ? money(donor.giving.total) : null, "giving.count": donor.giving?.count, "giving.lastAmount": donor.giving?.lastAmount == null ? null : money(donor.giving.lastAmount), "giving.lastDate": donor.giving?.lastDate ? date(donor.giving.lastDate) : null, "pledge.balance": donor.pledge ? money(donor.pledge.balance) : null, "campaign.name": donor.campaign?.name, responseCode: donor.responseCode, asOf: date(donor.asOf) };
+    if (!(key in values)) return legacyMerge(node, `{{${key}}}`);
     const value = values[key]; return value === null || value === undefined || value === "" ? issue(node, "MISSING_DONOR_VALUE", `Choose recipient/context for ${key}.`) : e(String(value)).replace(/\n/g, "<br>");
   }
   function asks(node: StudioNode): number[] {
@@ -55,15 +62,25 @@ export function renderStudio(design: StudioDesign, donor: DonorContext, brand: B
   }
   function legacyMerge(node: StudioNode, source: string, html = false): string {
     const keys = collectMergeFieldKeys(source).filter(key => !email || !["unsubscribeUrl", "managePreferencesUrl", "preferencesUrl"].includes(key));
-    const sensitive = keys.some(key=>/^(gift\.|year\.|donor\.(?:total|lifetime))/.test(key));
+    const sensitive = keys.some(key=>/^(gift\.|giving\.|pledge\.|year\.|donor\.(?:total|lifetime))/.test(key));
     if (keys.length && isPublic && keys.some(key=>!key.startsWith("organization.") && key!=="campaign.name" && key!=="currentDate")) return issue(node,"PRIVATE_CHANNEL","Recipient merge fields cannot appear in a public version.");
     if (sensitive && !donor.sensitiveAllowed) { const warning = needsSensitive(node); if (donor.available) return warning; }
-      const mergeValues:Record<string,string> = {...donor.mergeValues,"donor.fullName":donor.name,"donor.salutation":donor.salutation,"donor.addressBlock":donor.address,"donor.entityKind":donor.entityKind,"household.name":donor.entityKind==="HOUSEHOLD"?donor.name:"","campaign.name":donor.campaign?.name||"","year":String(design.data.year),"currentDate":date(donor.asOf),"organization.name":string(brand.identity.organizationDisplayName),"organization.mission":string(brand.identity.missionStatement),"organization.address":[brand.identity.streetAddress1,brand.identity.streetAddress2,brand.identity.city,brand.identity.stateProvince,brand.identity.postalCode].filter(Boolean).join(", "),"organization.phone":string(brand.identity.contactPhone),"organization.email":string(brand.identity.contactEmail),"organization.website":string(brand.identity.websiteUrl),"organization.taxId":string(brand.identity.taxId)};
-      if(donor.sensitiveAllowed){if(donor.gift)Object.assign(mergeValues,{"gift.amount":money(donor.gift.amount),"gift.date":date(donor.gift.date),"gift.fund":donor.gift.fund,"gift.receiptNumber":donor.gift.receiptNumber,"gift.taxDeductibleAmount":donor.gift.deductible==null?"":money(donor.gift.deductible)});if(donor.giving)Object.assign(mergeValues,{"year.totalGiving":money(donor.giving.total),"year.numberOfGifts":String(donor.giving.count),"year.firstGiftDate":donor.giving.firstDate||"","year.lastGiftDate":donor.giving.lastDate||""});}
-    if (!donor.sensitiveAllowed) for (const key of Object.keys(mergeValues)) if (/^(gift\.|year\.|donor\.(?:total|lifetime))/.test(key)) delete mergeValues[key];
+      const mergeValues:Record<string,string> = {...donor.mergeValues,"donor.fullName":donor.name,"donor.salutation":donor.salutation,"donor.addressBlock":donor.address,"donor.entityKind":donor.entityKind,"household.name":donor.mergeValues?.["household.name"] || (donor.entityKind==="HOUSEHOLD"?donor.name:""),"campaign.name":donor.campaign?.name||"","year":String(design.data.year),"currentDate":date(donor.asOf),"organization.name":string(brand.identity.organizationDisplayName),"organization.mission":string(brand.identity.missionStatement),"organization.address":[brand.identity.streetAddress1,brand.identity.streetAddress2,brand.identity.city,brand.identity.stateProvince,brand.identity.postalCode].filter(Boolean).join(", "),"organization.phone":string(brand.identity.contactPhone),"organization.email":string(brand.identity.contactEmail),"organization.website":string(brand.identity.websiteUrl),"organization.taxId":string(brand.identity.taxId)};
+      if(donor.sensitiveAllowed){if(donor.gift)Object.assign(mergeValues,{"gift.amount":money(donor.gift.amount),"gift.date":date(donor.gift.date),"gift.fund":donor.gift.fund,"gift.receiptNumber":donor.gift.receiptNumber,"gift.taxDeductibleAmount":donor.gift.deductible==null?"":money(donor.gift.deductible)});if(donor.giving)Object.assign(mergeValues,{"year.totalGiving":money(donor.giving.total),"year.numberOfGifts":String(donor.giving.count),"year.firstGiftDate":donor.mergeValues?.["year.firstGiftDate"] ?? (donor.giving.firstDate?date(donor.giving.firstDate):""),"year.lastGiftDate":donor.mergeValues?.["year.lastGiftDate"] ?? (donor.giving.lastDate?date(donor.giving.lastDate):"")});}
+    Object.assign(mergeValues, { name: donor.name, salutation: donor.salutation, address: donor.address, entityKind: donor.entityKind, asOf: date(donor.asOf), responseCode: donor.responseCode });
+    if (donor.sensitiveAllowed) Object.assign(mergeValues, {
+      "gift.deductible": donor.gift?.deductible == null ? "" : money(donor.gift.deductible),
+      "giving.total": donor.giving ? money(donor.giving.total) : "", "giving.count": donor.giving ? String(donor.giving.count) : "",
+      "giving.lastAmount": donor.giving?.lastAmount == null ? "" : money(donor.giving.lastAmount),
+      "giving.lastDate": donor.giving?.lastDate ? date(donor.giving.lastDate) : "",
+      "pledge.balance": donor.pledge ? money(donor.pledge.balance) : "",
+    });
+    const signer = brand.signers.find(item => item.id === brand.defaultSignerId && item.active);
+    for (const [key, value] of Object.entries({ "staff.fullName": signer?.signerName || brand.identity.defaultLetterSignerName, "staff.title": signer?.signerTitle || brand.identity.defaultLetterSignerTitle, "staff.email": signer?.email || brand.identity.defaultLetterSignerEmail })) if (value) mergeValues[key] = String(value);
+    if (!donor.sensitiveAllowed) for (const key of Object.keys(mergeValues)) if (/^(gift\.|giving\.|pledge\.|year\.|donor\.(?:total|lifetime))/.test(key)) delete mergeValues[key];
     const missing = new Set<string>();
     const values = html ? Object.fromEntries(Object.entries(mergeValues).map(([key, value]) => [key, e(value).replace(/\n/g, "<br>")])) : mergeValues;
-    const merged = renderMergeFields(source, values, { missingFields: missing, missingMode: donor.available ? "blank" : "preserve" });
+    const merged = renderMergeFields(source, values, { additionalFields: DONOR_FIELDS, missingFields: missing, missingMode: donor.available ? "blank" : "preserve" });
     for (const key of keys) if (!(key in mergeValues) || missing.has(key)) issue(node,"MERGE_CONTEXT",`Review recipient/context for legacy merge field ${key}.`);
     return html ? sanitizeStudioHtml(merged) : e(merged).replace(/\n/g, "<br>");
   }
@@ -73,7 +90,7 @@ export function renderStudio(design: StudioDesign, donor: DonorContext, brand: B
     const a = node.attrs || {}, id = sourceId || string(a.studioId), type = node.type;
     if (options.channel !== "LETTER" && a.printOnly === true || !email && a.emailOnly === true) { adapt(node, `${type} is explicitly limited to the other format.`); return ""; }
     const attrs = node.attrs || {}, children = () => (node.content || []).map(child=>render(child)).join("");
-    const attributeKeys=collectMergeFieldKeys(JSON.stringify(Object.fromEntries(Object.entries(attrs).filter(([key])=>!["html","reviewedHtml","sourceRevisionId","studioId"].includes(key)))))
+    const attributeKeys=collectMergeFieldKeys(JSON.stringify(Object.fromEntries(Object.entries(attrs).filter(([key])=>!["html","reviewedHtml","sourceRevisionId","studioId","rawToken","field"].includes(key)))))
       .concat((node.marks||[]).flatMap(mark=>collectMergeFieldKeys(JSON.stringify(mark.attrs||{}))));
     if(attributeKeys.length&&isPublic&&attributeKeys.some(key=>!key.startsWith("organization.")&&!["campaign.name","currentDate"].includes(key)))return issue(node,"PRIVATE_CHANNEL","Recipient fields in links, images and block settings cannot appear in public content.");
     if(attributeKeys.length)issue(node,"MERGE_ATTRIBUTE","Review merge fields in this block's link or settings. Use a preserved HTML block for dynamic legacy links.");
@@ -97,14 +114,20 @@ export function renderStudio(design: StudioDesign, donor: DonorContext, brand: B
       return sanitizeStudioHtml(`<p${common}>${links.map(link=>`<a href="${e(link.url)}">${e(link.label || link.url)}</a>`).join(" · ")}</p>`);
     }
     if (type === "doc") return children();
-    if (type === "text") {
-      let html = legacyMerge(node, node.text || "");
+    const mergeTokenHtml = () => {
+      const token = string(a.rawToken);
+      if (!donor.available) { legacyMerge(node, token); return `<span data-merge-field="${e(a.field)}">${e(token)}</span>`; }
+      if (a.field === "ask.suggested") return field(node,"ask.suggested");
+      return legacyMerge(node, token);
+    };
+    if (type === "text" || type === "mergeField") {
+      let html = type === "mergeField" ? mergeTokenHtml() : legacyMerge(node, node.text || "");
       for (const mark of node.marks || []) {
         const values = mark.attrs || {};
         if (["bold", "italic", "underline", "strike", "code", "superscript", "subscript"].includes(mark.type)) { const tags: Record<string, string> = { bold: "strong", italic: "em", underline: "u", strike: "s", code: "code", superscript: "sup", subscript: "sub" }; html = `<${tags[mark.type]}>${html}</${tags[mark.type]}>`; }
         if (mark.type === "link") html = `<a href="${e(values.href)}">${html}</a>`;
         if (mark.type === "highlight") html = `<span style="background:${color(values.color, "#fff2b2")}">${html}</span>`;
-        if (mark.type === "textStyle") { const declarations = [values.color ? `color:${color(values.color, design.styles.color)}` : "", values.fontFamily ? `font-family:${email ? /Noto/.test(string(values.fontFamily)) ? "Georgia,serif" : "Arial,sans-serif" : /Noto/.test(string(values.fontFamily)) ? "'Noto Serif'" : "Inter"}` : "", values.fontSize ? `font-size:${number(parseFloat(string(values.fontSize)), design.styles.fontSize, 8, 48)}pt` : "", values.lineHeight ? `line-height:${number(parseFloat(string(values.lineHeight)), 1.5, 1, 2.5)}` : ""].filter(Boolean).join(";"); html = `<span style="${declarations}">${html}</span>`; }
+        if (mark.type === "textStyle") { const declarations = [values.color ? `color:${color(values.color, design.styles.color)}` : "", values.fontFamily ? `font-family:${design.version===4 ? `'${studioFont(values.fontFamily)}'` : email ? /Noto/.test(string(values.fontFamily)) ? "Georgia,serif" : "Arial,sans-serif" : /Noto/.test(string(values.fontFamily)) ? "'Noto Serif'" : "Inter"}` : "", values.fontSize ? `font-size:${number(parseFloat(string(values.fontSize)), design.styles.fontSize, 8, 48)}pt` : "", values.lineHeight ? `line-height:${number(parseFloat(string(values.lineHeight)), 1.5, 1, 2.5)}` : ""].filter(Boolean).join(";"); html = `<span style="${declarations}">${html}</span>`; }
       } return html;
     }
     if (type === "hardBreak") return "<br>";
@@ -175,6 +198,11 @@ export function renderRegion(design: StudioDesign, donor: DonorContext, brand: B
     if (options.authoring) return html;
     return renderStudio({ ...design, channels: undefined, body: { type: "doc", content: [{ type: "studioHtml", attrs: { html, reviewedHtml: html } }] }, pack: { ...design.pack, replySlip: { ...design.pack.replySlip, enabled: false } } }, donor, brand).html;
   }
+  const globalHtml = string(identity[footer ? "globalFooterHtml" : "globalHeaderHtml"]);
+  if (region.mode === "brand" && globalHtml) {
+    if (options.authoring) return sanitizeStudioHtml(globalHtml);
+    return renderStudio({ ...design, channels: undefined, body: { type: "doc", content: [{ type: "studioHtml", attrs: { html: globalHtml, reviewedHtml: globalHtml } }] }, pack: { ...design.pack, replySlip: { ...design.pack.replySlip, enabled: false } } }, donor, brand).html;
+  }
   if (footer) return `<div style="font-family:Inter,Arial,sans-serif;font-size:8pt">${e(identity.footerLegalText || identity.legalOrganizationName || identity.organizationDisplayName)}<span style="float:right">Page <span data-studio-page-number>1</span> of <span data-studio-total-pages>1</span></span></div>`;
   return `<div style="font-family:Inter,Arial,sans-serif;font-size:9pt">${identity.logoUrl ? `<img src="${e(identity.logoUrl)}" alt="${e(identity.organizationDisplayName)}" style="max-width:140px;max-height:42px;object-fit:contain;vertical-align:middle;margin-right:12px">` : ""}<strong>${e(identity.organizationDisplayName)}</strong><div>${e([identity.streetAddress1, [identity.city, identity.stateProvince, identity.postalCode].filter(Boolean).join(" "), identity.contactPhone].filter(Boolean).join(" · "))}</div></div>`;
 }
@@ -186,7 +214,7 @@ export function regionIssues(design:StudioDesign,donor:DonorContext,brand:BrandD
     if(selected&&!preset)issues.push({code:"REGION_PRESET",message:`${key}: the explicitly selected brand preset is unavailable.`,blocking:true});
     const doc=region.mode==="custom"?region.content:preset?.content;
     if(doc){issues.push(...renderStudio({...design,channels:undefined,body:doc,pack:{...design.pack,replySlip:{...design.pack.replySlip,enabled:false}}},donor,brand).issues.map(issue=>({...issue,message:`${key}: ${issue.message}`})));if(walkNodes(doc).some(node=>node.type==="studioSignature"))issues.push({code:"REGION_SIGNATURE",message:"Place the signature in the letter body so it appears once, rather than in repeated page furniture.",blocking:true});}
-    if(region.mode==="brand"&&preset?.legacyHtml)issues.push(...renderStudio({...design,channels:undefined,body:{type:"doc",content:[{type:"studioHtml",attrs:{html:preset.legacyHtml,reviewedHtml:preset.legacyHtml}}]},pack:{...design.pack,replySlip:{...design.pack.replySlip,enabled:false}}},donor,brand).issues.map(issue=>({...issue,message:`${key}: ${issue.message}`})));
+    if(region.mode==="brand"&&(preset?.legacyHtml || string(brand.identity[footer?"globalFooterHtml":"globalHeaderHtml"])))issues.push(...renderStudio({...design,channels:undefined,body:{type:"doc",content:[{type:"studioHtml",attrs:{html:preset?.legacyHtml || string(brand.identity[footer?"globalFooterHtml":"globalHeaderHtml"]),reviewedHtml:preset?.legacyHtml || string(brand.identity[footer?"globalFooterHtml":"globalHeaderHtml"])}}]},pack:{...design.pack,replySlip:{...design.pack.replySlip,enabled:false}}},donor,brand).issues.map(issue=>({...issue,message:`${key}: ${issue.message}`})));
   }
   return issues;
 }

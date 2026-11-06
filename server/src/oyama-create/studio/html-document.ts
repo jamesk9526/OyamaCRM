@@ -25,6 +25,7 @@ function nodeHtml(node:StudioNode,primary:string):string{
       if(mark.type==="highlight")html=`<span style="background-color:${e(string(mark.attrs?.color)||"#fff2b2")}">${html}</span>`;
     }return html;
   }
+  if(node.type==="mergeField")return e(string(a.rawToken));
   if(node.type==="hardBreak")return "<br>";
   const tag=({paragraph:"p",blockquote:"blockquote",bulletList:"ul",orderedList:"ol",listItem:"li",table:"table",tableRow:"tr",tableCell:"td",tableHeader:"th",studioGroup:"div",studioCallout:"div",studioImpact:"div"} as Record<string,string>)[node.type]||(node.type==="heading"?`h${Number(a.level)||2}`:"");
   if(tag)return `<${tag}${attr}${["td","th"].includes(tag)?` colspan="${Number(a.colspan)||1}" rowspan="${Number(a.rowspan)||1}"`:""}>${children()}</${tag}>`;

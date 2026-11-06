@@ -13,6 +13,18 @@ const org='synthetic-import-org';
 const call=(method:'get'|'post'|'patch',path:string,body?:unknown,role='admin',orgId=org)=>request(app)[method]('/api/oyama-create'+path).set('Authorization','Bearer '+signAccessToken({sub:'admin',orgId,role,email:'synthetic@example.invalid'})).send(body as object);
 beforeEach(async()=>{resetCreateRows();await db.user.create({data:{id:'admin',organizationId:org,role:'admin',active:true,email:'synthetic@example.invalid'}});await db.organization.create({data:{id:org,name:'Synthetic organization'}});});
 describe('automatic Create import',()=>{
+ it('freezes original global header layout and selected signer into the imported source snapshot',async()=>{
+  const header='<table style="width:100%;border-spacing:0"><tr><td style="width:50%"><img src="/uploads/branding/synthetic-import-org/logo.png" style="width:120px"></td><td><p>To {first} {last}</p><p>{address}</p></td></tr></table>';
+  await db.pluginSetting.create({data:{organizationId:org,pluginKey:'organization-branding',config:{organizationDisplayName:'Original organization',globalHeaderHtml:header,globalFooterHtml:'<p>Original footer</p>'}}});
+  await db.letterSignatureBlock.create({data:{id:'default-signer',organizationId:org,name:'Default',signerName:'Default Signer',isDefault:true,isActive:true}});
+  await db.letterSignatureBlock.create({data:{id:'chosen-signer',organizationId:org,name:'Chosen',signerName:'Chosen Signer',isDefault:false,isActive:true}});
+  await db.letterTemplate.create({data:{id:'original-header-letter',organizationId:org,name:'Original letter name',printBody:'<p>Dear {first}</p>',signatureBlockId:'chosen-signer'}});
+  const result=await call('post','/legacy/import',{channel:'LETTER',legacyId:'original-header-letter'});expect(result.status).toBe(201);
+  const brand=rows.createImportSourceRevision[0].snapshotJson.brand;
+  expect(brand.identity.globalHeaderHtml).toContain('<table');expect(brand.identity.globalHeaderHtml).toContain('width:120px');expect(brand.identity.globalHeaderHtml).toContain('To {first} {last}');expect(brand.defaultSignerId).toBe('chosen-signer');
+  await db.pluginSetting.update({where:{organizationId_pluginKey:{organizationId:org,pluginKey:'organization-branding'}},data:{config:{globalHeaderHtml:'<p>Later branding</p>'}}});
+  expect(rows.createImportSourceRevision[0].snapshotJson.brand.identity.globalHeaderHtml).not.toContain('Later branding');expect(rows.letterTemplate[0].name).toBe('Original letter name');expect(rows.createDelivery).toHaveLength(0);
+ });
  it('adds a standalone old letter to the template library under its exact original name',async()=>{
   const name='Thank-You Letter May 26 — Churches';
   await db.letterTemplate.create({data:{id:'exact-name-letter',organizationId:org,name,printSubject:'A different printed subject',printBody:'<p>Original</p>'}});

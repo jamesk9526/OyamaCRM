@@ -6,10 +6,11 @@ import { renderStudio, emptyDonor } from "./render.js";
 import { createHash } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 import { json } from "../../services/letter-production.js";
-import { authoredLetterChromeHtml, sanitizeLetterHtml } from "../../services/letter-production-renderer.js";
+import { authoredLetterChromeHtml } from "../../services/letter-production-renderer.js";
 import type { LetterSnapshot } from "../../services/letter-production-contract.js";
 import { CreateError, object, string } from "../domain.js";
 import { normalizeBrand, legacyBrandProjection, profileIdentity } from "./brand.js";
+import { sanitizeStudioHtml } from "./html.js";
 import { EMPTY_DOC, type BrandDocument } from "./types.js";
 export const brandReviewToken = (org: string, revision: number, publishedId: string | null, document: unknown) => createHash("sha256").update(JSON.stringify([org, revision, publishedId, document])).digest("hex");
 
@@ -25,7 +26,7 @@ export async function readLegacyBrand(org: string, selected?: { headerId?: strin
     prisma.organizationSettings.findUnique({where:{organizationId:org},select:{currency:true}}),
   ]);
   const identity = { ...object(stored?.config) }; identity.organizationDisplayName ||= organization?.name || ""; identity.currency ||= moneySettings?.currency||"USD";
-  const activeSigner = signers.find(signer => signer.id === identity.defaultLetterSignatureBlockId && signer.isActive) || signers.find(signer => signer.isDefault && signer.isActive);
+  const activeSigner = signers.find(signer => signer.id === selected?.signerId && signer.isActive) || signers.find(signer => signer.id === identity.defaultLetterSignatureBlockId && signer.isActive) || signers.find(signer => signer.isDefault && signer.isActive);
   const parsedSigners: unknown[] = signers.map(signer => ({ ...signer, active: signer.isActive }));
   if (!activeSigner && identity.defaultLetterSignerName) parsedSigners.push({ id: `legacy-${org}`, name: "Organization signer", signerName: string(identity.defaultLetterSignerName), signerTitle: string(identity.defaultLetterSignerTitle), closingPhrase: string(identity.defaultLetterClosingPhrase), signatureImageUrl: string(identity.defaultLetterSignatureImageUrl), typedSignature: string(identity.defaultLetterTypedSignature), email: string(identity.defaultLetterSignerEmail), phone: string(identity.defaultLetterSignerPhone), active: true });
   const branding = { organizationName: identity.organizationDisplayName, ...identity };
@@ -100,9 +101,9 @@ export async function publishBrand(org: string, actor: string, input: { draftRev
 export function sanitizeBrandHtml(brand: BrandDocument): BrandDocument {
   const result = structuredClone(brand);
   // Draft branding still references uploaded files. Only final print HTML requires frozen data URLs.
-  for (const key of ["globalHeaderHtml", "globalFooterHtml"]) if (result.identity[key]) result.identity[key] = sanitizeLetterHtml(String(result.identity[key]), { authoredImages: true });
-  for (const preset of result.presets) if (preset.legacyHtml) preset.legacyHtml = sanitizeLetterHtml(preset.legacyHtml, { authoredImages: true });
-  for (const profile of result.profiles) for (const key of ["globalHeaderHtml", "globalFooterHtml"]) if (profile.values[key]) profile.values[key] = sanitizeLetterHtml(String(profile.values[key]), { authoredImages: true });
+  for (const key of ["globalHeaderHtml", "globalFooterHtml"]) if (result.identity[key]) result.identity[key] = sanitizeStudioHtml(String(result.identity[key]));
+  for (const preset of result.presets) if (preset.legacyHtml) preset.legacyHtml = sanitizeStudioHtml(preset.legacyHtml);
+  for (const profile of result.profiles) for (const key of ["globalHeaderHtml", "globalFooterHtml"]) if (profile.values[key]) profile.values[key] = sanitizeStudioHtml(String(profile.values[key]));
   return result;
 }
 

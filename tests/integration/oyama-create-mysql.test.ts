@@ -19,6 +19,7 @@ describe.skipIf(!url)("oyamaCreate MySQL migration and contention", () => {
     await connection.query(await readFile("prisma/migrations/20261103200000_create_studio/migration.sql", "utf8"));
     await connection.query(await readFile("prisma/migrations/20261104120000_create_recoverable_trash/migration.sql", "utf8"));
     await connection.query(await readFile("prisma/migrations/20261104210000_create_automatic_import/migration.sql", "utf8"));
+    await connection.query(await readFile("prisma/migrations/20261106030000_create_v5_workspace/migration.sql", "utf8"));
     second = await mysql.createConnection(url!);
     await connection.execute("INSERT INTO CreateCampaign (id, organizationId, name, ownerId, audienceListIds, channelsJson, updatedAt) VALUES (?, 'synthetic', 'Synthetic concurrency test', 'synthetic', '[]', '[\"EMAIL\"]', NOW(3))", [prefix]);
   });
@@ -45,6 +46,20 @@ describe.skipIf(!url)("oyamaCreate MySQL migration and contention", () => {
   it("keeps Studio and Brand Hub defaults disabled", async () => {
     const [rows]=await connection.execute("SELECT oyamaCreateStudioEnabled,oyamaCreateBrandHubEnabled FROM OrganizationSettings WHERE id=?",[prefix]);
     expect((rows as Array<{oyamaCreateStudioEnabled:number;oyamaCreateBrandHubEnabled:number}>)[0]).toMatchObject({oyamaCreateStudioEnabled:0,oyamaCreateBrandHubEnabled:0});
+  });
+  it("keeps v5 opt-in and guards shared notes without changing campaign revisions", async () => {
+    const [settings] = await connection.execute("SELECT oyamaCreateV5ShellEnabled, oyamaCreateUnifiedEditorEnabled FROM OrganizationSettings WHERE id=?", [prefix]);
+    expect((settings as unknown[])[0]).toMatchObject({ oyamaCreateV5ShellEnabled: 0, oyamaCreateUnifiedEditorEnabled: 0 });
+    const content = `${prefix}-notes`;
+    await connection.execute("INSERT INTO CreateContent (id, campaignId, organizationId, name, documentJson, updatedAt) VALUES (?, ?, 'synthetic', 'Notes fixture', '{}', NOW(3))", [content, prefix]);
+    const insert = "INSERT INTO CreateContentNote (id, organizationId, contentId, text, updatedBy, updatedAt) VALUES (?, 'synthetic', ?, 'Internal', 'synthetic', NOW(3))";
+    const created = await Promise.allSettled([connection.execute(insert, [`${prefix}-note-1`, content]), second.execute(insert, [`${prefix}-note-2`, content])]);
+    expect(created.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    const update = "UPDATE CreateContentNote SET text=?, revision=revision+1 WHERE organizationId='synthetic' AND contentId=? AND revision=1";
+    const results = await Promise.all([connection.execute(update, ['First edit', content]), second.execute(update, ['Second edit', content])]);
+    expect(results.map(([result]) => (result as mysql.ResultSetHeader).affectedRows).sort()).toEqual([0, 1]);
+    const [campaigns] = await connection.execute("SELECT revision FROM CreateCampaign WHERE id=?", [prefix]);
+    expect((campaigns as unknown[])[0]).toMatchObject({ revision: 1 });
   });
   it("allows one immutable brand revision and one draft-save winner", async()=>{
     const insert="INSERT INTO CreateBrandRevision (id,organizationId,revision,documentJson,publishedBy) VALUES (?,'synthetic',1,'{}','synthetic')";

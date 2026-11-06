@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+import { printFontAssets } from "./print-fonts.js";
 import { readFile } from "node:fs/promises";
 import { chromium } from "playwright";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
@@ -15,7 +16,7 @@ export async function freezeStudioPrint(org: string, design: StudioDesign, donor
   if (url && [channelDesign(design, "LETTER").body, design.pack.replySlip.content].flatMap(walkNodes).some(node => node.type === "studioQr")) qrImages[url] = await QRCode.toDataURL(new URL(url, process.env.NEXT_PUBLIC_APP_URL || process.env.FRONTEND_ORIGIN || "http://localhost:3000").toString(), { errorCorrectionLevel: "M", margin: 4, width: 384 });
   const rendered = renderStudio(design, donor, brand, { channel: "LETTER", artifact: kind, qrImages, sample });
   rendered.issues.push(...regionIssues(design,donor,brand));
-  const snapshot: FrozenStudioPrint = { sensitive:designSensitive(design)||brand.presets.some(preset=>designSensitive({...design,body:preset.legacyHtml?{type:"doc",content:[{type:"studioHtml",attrs:{html:preset.legacyHtml}}]}:preset.content})), version: 1, kind, width: metrics.width / 96, height: metrics.height / 96, margins: { ...design.page.margins }, styles: { ...design.styles }, html: rendered.html, headers: [renderRegion(design, donor, brand, "firstHeader"), renderRegion(design, donor, brand, "header")], footers: [renderRegion(design, donor, brand, "firstFooter"), renderRegion(design, donor, brand, "footer")], assets: {}, issues: rendered.issues, responseCode: donor.responseCode, brandRevisionId: design.brandRevisionId };
+  const snapshot: FrozenStudioPrint = { sensitive:designSensitive(design)||[brand.identity.globalHeaderHtml,brand.identity.globalFooterHtml].some(html=>!!html&&designSensitive({...design,body:{type:"doc",content:[{type:"studioHtml",attrs:{html}}]}}))||brand.presets.some(preset=>designSensitive({...design,body:preset.legacyHtml?{type:"doc",content:[{type:"studioHtml",attrs:{html:preset.legacyHtml}}]}:preset.content})), version: design.version === 4 ? 2 : 1, kind, width: metrics.width / 96, height: metrics.height / 96, margins: { ...design.page.margins }, styles: { ...design.styles }, html: rendered.html, headers: [renderRegion(design, donor, brand, "firstHeader"), renderRegion(design, donor, brand, "header")], footers: [renderRegion(design, donor, brand, "firstFooter"), renderRegion(design, donor, brand, "footer")], assets: {}, issues: rendered.issues, responseCode: donor.responseCode, brandRevisionId: design.brandRevisionId };
   if (kind === "OUTER_ENVELOPE" || kind === "RETURN_ENVELOPE") {
     const renderedEnvelope=renderEnvelope(design,donor,brand,kind,sample);
     snapshot.width=renderedEnvelope.width;snapshot.height=renderedEnvelope.height;
@@ -25,7 +26,11 @@ export async function freezeStudioPrint(org: string, design: StudioDesign, donor
   const sources = new Set<string>();
   for (const html of [snapshot.html, ...snapshot.headers, ...snapshot.footers]) for (const match of html.matchAll(/<img\b[^>]*src="([^"]+)"/gi)) sources.add(match[1].replace(/&amp;/g, "&"));
   for (const source of sources) snapshot.assets[source] = await freezeAsset(source, org);
-  for (const [name, file] of [["Inter", "inter-latin-variable.woff2"], ["Noto Serif", "noto-serif-latin.woff2"]]) snapshot.assets[`font:${name}`] = (await readFile(`public/fonts/${file}`)).toString("base64");
+  if (snapshot.version === 2) {
+    const fonts = await printFontAssets(design, [snapshot.html, ...snapshot.headers, ...snapshot.footers]);
+    if (fonts.issues.length) throw new ProductionError(422, fonts.issues.map(issue => issue.message).join(" "));
+    Object.assign(snapshot.assets, fonts.assets);
+  } else for (const [name, file] of [["Inter", "inter-latin-variable.woff2"], ["Noto Serif", "noto-serif-latin.woff2"]]) snapshot.assets[`font:${name}`] = (await readFile(`public/fonts/${file}`)).toString("base64");
   return snapshot;
 }
 function frozenHtml(snapshot: FrozenStudioPrint, html: string) {

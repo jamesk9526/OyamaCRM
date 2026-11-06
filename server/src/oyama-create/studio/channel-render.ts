@@ -14,7 +14,7 @@ export function renderChannel(design:StudioDesign,donor:DonorContext,brand:Brand
   const rendered=renderStudio(design,emptyDonor(donor.asOf),brand,{channel});
   if(!publicCopySafe({version:1,blocks:[]},format))rendered.issues.push({code:"PRIVATE_CHANNEL",message:"Public channel settings cannot contain recipient merge fields.",blocking:true,channel});
   if(channel==="SMS"||channel==="SOCIAL"){
-    if(format.caption.trim()){
+    if(format.caption.trim()&&!(design.version===4&&design.channels?.[channel])){
       rendered.text=format.caption;rendered.html="";
       // An explicit literal caption replaces the private letter projection entirely.
       rendered.issues=publicCopySafe({version:1,blocks:[]},format)?[]:[{code:"PRIVATE_CHANNEL",message:"Public channel settings cannot contain recipient merge fields.",blocking:true,channel}];

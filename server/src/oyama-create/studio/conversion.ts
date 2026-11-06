@@ -7,6 +7,7 @@ import { parseStored } from "../legacy.js";
 import { productionLayout } from "../../services/letter-production-contract.js";
 import type { StudioDesign, StudioDoc, StudioNode } from "./types.js";
 
+import { studioFont } from "./fonts.js";
 export type Conversion = { design: StudioDesign; diagnostics: string[]; originalHtml: string };
 export function convertLegacy(record: EmailCampaign | LetterTemplate, channel: "EMAIL" | "LETTER", sourceRevisionId = ""): Conversion {
   const design = defaultDesign(); design.version = 3; design.channels = {};
@@ -21,7 +22,7 @@ export function convertLegacy(record: EmailCampaign | LetterTemplate, channel: "
     const hasBlocks = Array.isArray(object(stored.template).blocks) && template.blocks.length > 0;
     originalHtml = email.bodyHtml || (hasBlocks ? renderEmailTemplateDocument(template, normalizeEmailTemplateSettings(stored.settings)).html : "");
     design.email.subject = email.subject; design.email.previewText = email.previewText || "";
-    design.styles.color = template.textColor; design.styles.font = /serif|Georgia|Times/i.test(template.fontFamily) ? "Noto Serif" : "Inter";
+    design.styles.color = template.textColor; design.styles.font = studioFont(template.fontFamily);
     design.styles.fontSize = template.baseFontSize * .75; design.styles.lineHeight = template.lineHeight;
     design.presentation = { emailWidth: template.contentWidth, emailBackground: template.backgroundColor, suppressEmailChrome: true, emailIncludesFooter: !hasBlocks && /\{\{(?:unsubscribeUrl|managePreferencesUrl|preferencesUrl)\}\}/.test(originalHtml) };
     const block = (item: OyamaEmailBlock): StudioNode[] => {

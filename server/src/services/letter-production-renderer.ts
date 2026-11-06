@@ -3,6 +3,7 @@ import sanitizeHtml from "sanitize-html";
 import { chromium } from "playwright";
 import { PDFDocument } from "pdf-lib";
 import { type LetterSnapshot, string, LETTER_RENDERER_VERSION } from "./letter-production-contract.js";
+import { sanitizeStudioHtml } from "../oyama-create/studio/html.js";
 import { mapHtmlImageSources, normalizePublicMediaUrl } from "../lib/public-media.js";
 
 const escape = (value: unknown) => string(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]!));
@@ -106,8 +107,8 @@ function renderLetterChromeHtml(snapshot: Pick<LetterSnapshot, "branding" | "ass
   let customHasLogo = false;
   if (authoredImages && logo) mapHtmlImageSources(string(source.customHtml), src => { if (normalizePublicMediaUrl(src) === normalizePublicMediaUrl(logo)) customHasLogo = true; return src; });
   const logoHtml = !footer && logo && !customHasLogo ? `<img src="${escape(logo)}" style="max-width:140px;max-height:35px;vertical-align:middle;margin-right:12px">` : "";
-  const left = `${authoredImages ? sanitizeLetterHtml(logoHtml, { authoredImages: true }) : logoHtml}${custom ? sanitizeLetterHtml(custom, { authoredImages }) : `<strong>${escape(label)}</strong><div>${contact}</div>`}`;
-  const right = authoredImages && !footer ? source.rightColumnMode === "RECIPIENT" ? '<strong>{{donor.fullName}}</strong><div>{{donor.addressBlock}}</div>' : source.rightColumnMode === "CUSTOM" ? sanitizeLetterHtml(string(source.rightColumnHtml), { authoredImages: true }) : "" : "";
+  const left = `${authoredImages ? sanitizeStudioHtml(logoHtml) : logoHtml}${custom ? authoredImages ? sanitizeStudioHtml(custom) : sanitizeLetterHtml(custom) : `<strong>${escape(label)}</strong><div>${contact}</div>`}`;
+  const right = authoredImages && !footer ? source.rightColumnMode === "RECIPIENT" ? '<strong>{{donor.fullName}}</strong><div>{{donor.addressBlock}}</div>' : source.rightColumnMode === "CUSTOM" ? sanitizeStudioHtml(string(source.rightColumnHtml)) : "" : "";
   const content = right ? `<table style="width:100%;border-collapse:collapse"><tr><td style="width:60%;vertical-align:top">${left}</td><td style="width:40%;vertical-align:top;text-align:right">${right}</td></tr></table>` : left;
   return `<div style="box-sizing:border-box;font-family:Arial,sans-serif;font-size:8px;width:100%;padding:0 ${snapshot.layout.margins.right}in 0 ${snapshot.layout.margins.left}in;color:#243b58">${content}${footer && source.showPageNumber !== false ? '<span style="float:right">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>' : ""}</div>`;
 }

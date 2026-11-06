@@ -1,12 +1,16 @@
 import { CreateError, object, string } from "../domain.js";
 import { EMPTY_DOC, STUDIO_NODE_TYPES, type StudioDesign, type StudioDoc, type StudioNode, type StudioEnvelope } from "./types.js";
 import { paragraph } from "./registry.js";
+import { SUPPORTED_LETTER_MERGE_FIELDS, collectMergeFieldKeys } from "../../services/letters-merge.js";
 import { managedPublicMedia } from "../../lib/public-media.js";
 
-const ATTRS = new Set(["studioId", "level", "textAlign", "indent", "spacing", "keepTogether", "keepWithNext", "src", "alt", "width", "height", "crop", "focalX", "focalY", "caption", "href", "colspan", "rowspan", "colwidth", "background", "color", "borderColor", "signerId", "secondSignerId", "closing", "field", "operator", "value", "basis", "amounts", "multipliers", "fallback", "minimum", "maximum", "rounding", "label", "mode", "statement", "size", "html", "start", "emailOnly", "printOnly", "presetId", "reviewedHtml", "sourceRevisionId", "thumbnail", "linksJson"]);
+import { mergeFieldForToken, UNIFIED_FIELDS } from "./merge-token.js";
+import { studioFont } from "./fonts.js";
+
+const ATTRS = new Set(["studioId", "rawToken", "level", "textAlign", "indent", "spacing", "keepTogether", "keepWithNext", "src", "alt", "width", "height", "crop", "focalX", "focalY", "caption", "href", "colspan", "rowspan", "colwidth", "background", "color", "borderColor", "signerId", "secondSignerId", "closing", "field", "operator", "value", "basis", "amounts", "multipliers", "fallback", "minimum", "maximum", "rounding", "label", "mode", "statement", "size", "html", "start", "emailOnly", "printOnly", "presetId", "reviewedHtml", "sourceRevisionId", "thumbnail", "linksJson"]);
 const MARKS = new Set(["bold", "italic", "underline", "strike", "code", "link", "textStyle", "highlight", "superscript", "subscript"]);
 const FIELDS = ["name", "salutation", "address", "entityKind", "gift.amount", "gift.date", "gift.fund", "gift.receiptNumber", "gift.deductible", "giving.total", "giving.count", "giving.lastAmount", "giving.lastDate", "pledge.balance", "campaign.name", "responseCode", "asOf"];
-export const DONOR_FIELDS = FIELDS;
+export const DONOR_FIELDS = [...new Set([...UNIFIED_FIELDS, ...FIELDS, ...collectMergeFieldKeys(...SUPPORTED_LETTER_MERGE_FIELDS)])];
 export const CONDITION_FIELDS = ["hasGiving", "hasGift", "hasPledge", "recurring", "entityKind", "tag", "givingTotal", "lastGiftBefore"];
 export function number(value: unknown, fallback: number, min: number, max: number) { return typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback; }
 export function color(value: unknown, fallback: string) { return /^#[a-f0-9]{6}$/i.test(string(value)) ? string(value) : fallback; }
@@ -53,7 +57,8 @@ export function normalizeDoc(value: unknown): StudioDoc {
     if (attrs.spacing !== undefined) attrs.spacing = number(typeof attrs.spacing === "string" ? parseFloat(attrs.spacing) : attrs.spacing, 9, 0, 72);
     if (attrs.textAlign && !["left", "center", "right", "justify"].includes(string(attrs.textAlign))) throw new CreateError(400, "Invalid text alignment.");
     if (type === "letterSpacer") attrs.height = number(typeof attrs.height === "string" ? parseFloat(attrs.height) : attrs.height, 12, 0, 144);
-    if (type === "studioField" && !FIELDS.includes(string(attrs.field))) throw new CreateError(400, "Choose a supported donor field.");
+    if (type === "mergeField") { const field = mergeFieldForToken(string(attrs.rawToken)); if (!field || field !== attrs.field) throw new CreateError(400, "A merge token must match its supported canonical field."); }
+    if (type === "studioField" && !DONOR_FIELDS.includes(string(attrs.field))) throw new CreateError(400, "Choose a supported donor field.");
     if (type === "studioCondition" && (!CONDITION_FIELDS.includes(string(attrs.field)) || !["is", "isNot", "greaterThan", "lessThan"].includes(string(attrs.operator)))) throw new CreateError(400, "Choose a supported donor condition.");
     if (type === "studioAsk") { if (!["fixed", "lastGift", "largestGift"].includes(string(attrs.basis))) throw new CreateError(400, "Choose a supported ask basis."); attrs.minimum = number(attrs.minimum, 1, 0.01, 1_000_000); attrs.maximum = number(attrs.maximum, 100000, Number(attrs.minimum), 1_000_000); attrs.rounding = number(attrs.rounding, 5, 0.01, 1000); }
     if (Object.keys(attrs).length) result.attrs = attrs;
@@ -63,7 +68,7 @@ export function normalizeDoc(value: unknown): StudioDoc {
         const mark = object(rawMark), type = string(mark.type), options = object(mark.attrs);
         if (!MARKS.has(type)) throw new CreateError(400, "Unsupported text formatting.");
         if (type === "link") return { type, attrs: { href: studioLink(options.href), target: "_blank", rel: "noopener noreferrer" } };
-        if (type === "textStyle") return { type, attrs: { ...(options.fontFamily ? { fontFamily: /Noto Serif|Georgia|Times/i.test(string(options.fontFamily)) ? "Noto Serif" : "Inter" } : {}), ...(options.fontSize ? { fontSize: `${number(parseFloat(string(options.fontSize)), 11, 8, 48)}pt` } : {}), ...(options.color ? { color: color(options.color, "#172b4d") } : {}), ...(options.lineHeight ? { lineHeight: String(number(parseFloat(string(options.lineHeight)), 1.5, 1, 2.5)) } : {}) } };
+        if (type === "textStyle") return { type, attrs: { ...(options.fontFamily ? { fontFamily: studioFont(options.fontFamily) } : {}), ...(options.fontSize ? { fontSize: `${number(parseFloat(string(options.fontSize)), 11, 8, 48)}pt` } : {}), ...(options.color ? { color: color(options.color, "#172b4d") } : {}), ...(options.lineHeight ? { lineHeight: String(number(parseFloat(string(options.lineHeight)), 1.5, 1, 2.5)) } : {}) } };
         if (type === "highlight") return { type, attrs: { color: color(options.color, "#fff2b2") } };
         return { type };
       });
@@ -72,11 +77,11 @@ export function normalizeDoc(value: unknown): StudioDoc {
       if (!Array.isArray(input.content)) throw new CreateError(400, "Invalid structured block content.");
       result.content = input.content.map(child => node(child, depth + 1));
     }
-    const children = result.content || [], inline = new Set(["text", "hardBreak"]);
+    const children = result.content || [], inline = new Set(["text", "hardBreak", "mergeField"]);
     const allows = type === "table" ? ["tableRow"] : type === "tableRow" ? ["tableCell", "tableHeader"] : type === "bulletList" || type === "orderedList" ? ["listItem"] : type === "studioColumns" ? ["studioColumn"] : null;
     if (allows && children.some(child => !allows.includes(child.type))) throw new CreateError(400, `Invalid content inside ${type}.`);
     if (["paragraph", "heading"].includes(type) && children.some(child => !inline.has(child.type))) throw new CreateError(400, "A text paragraph cannot contain block content.");
-    if (["text", "hardBreak", "horizontalRule", "image", "letterPageBreak", "letterSpacer"].includes(type) && children.length) throw new CreateError(400, `The ${type} block cannot contain child blocks.`);
+    if (["text", "mergeField", "hardBreak", "horizontalRule", "image", "letterPageBreak", "letterSpacer"].includes(type) && children.length) throw new CreateError(400, `The ${type} block cannot contain child blocks.`);
     if (["doc", "blockquote", "listItem", "tableCell", "tableHeader", "studioGroup", "studioColumn", "studioCallout", "studioImpact", "studioCondition"].includes(type) && children.some(child => inline.has(child.type) || ["tableRow", "tableCell", "tableHeader", "listItem", "studioColumn"].includes(child.type))) throw new CreateError(400, `Invalid block structure inside ${type}.`);
     return result;
   }
@@ -98,11 +103,11 @@ export function defaultDesign(): StudioDesign {
   };
 }
 export function normalizeDesign(value: unknown): StudioDesign {
-  const raw = object(value); if (raw.version !== 2 && raw.version !== 3) throw new CreateError(400, "A version 2 or 3 Studio design is required.");
+  const raw = object(value); if (raw.version !== 2 && raw.version !== 3 && raw.version !== 4) throw new CreateError(400, "A version 2, 3 or 4 Studio design is required.");
   const result = defaultDesign(), page = object(raw.page), margins = object(page.margins), styles = object(raw.styles), pack = object(raw.pack), data = object(raw.data), email = object(raw.email);
-  result.version = raw.version as 2 | 3;
+  result.version = raw.version as 2 | 3 | 4;
   result.body = normalizeDoc(raw.body);
-  if (raw.version === 3) {
+  if (raw.version === 3 || raw.version === 4) {
     result.channels = {};
     for (const channel of ["LETTER", "EMAIL", "WEB", "SOCIAL", "SMS"] as const) {
       const entry = object(object(raw.channels)[channel]);
@@ -111,10 +116,10 @@ export function normalizeDesign(value: unknown): StudioDesign {
     result.presentation = normalizePresentation(raw.presentation);
   }
   result.brandRevisionId = string(raw.brandRevisionId) || null; result.profileId = safeText(raw.profileId, 191);
-  result.page.paper = page.paper === "A4" || page.paper === "LEGAL" ? page.paper : "LETTER"; result.page.orientation = page.orientation === "landscape" ? "landscape" : "portrait";
+  result.page.paper = page.paper === "A4" || page.paper === "LEGAL" || page.paper === "HALF_LETTER" ? page.paper : "LETTER"; result.page.orientation = page.orientation === "landscape" ? "landscape" : "portrait";
   for (const key of ["top", "right", "bottom", "left"] as const) result.page.margins[key] = number(margins[key], result.page.margins[key], .125, 1.5);
   result.page.headerHeight = number(page.headerHeight, .45, 0, 1.25); result.page.footerHeight = number(page.footerHeight, .35, 0, 1.25);
-  result.styles = { font: styles.font === "Inter" ? "Inter" : "Noto Serif", emailFont: styles.font === "Inter" ? "Arial, Helvetica, sans-serif" : "Georgia, 'Times New Roman', serif", fontSize: number(styles.fontSize, 11, 8, 24), lineHeight: number(styles.lineHeight, 1.5, 1, 2.5), color: color(styles.color, result.styles.color), primary: color(styles.primary, result.styles.primary), accent: color(styles.accent, result.styles.accent), background: color(styles.background, "#ffffff"), paragraphSpacing: number(styles.paragraphSpacing, 9, 0, 36) };
+  result.styles = { font: studioFont(styles.font), emailFont: ["Inter","Arial","Aptos"].includes(studioFont(styles.font)) ? "Arial, Helvetica, sans-serif" : "Georgia, 'Times New Roman', serif", fontSize: number(styles.fontSize, 11, 8, 24), lineHeight: number(styles.lineHeight, 1.5, 1, 2.5), color: color(styles.color, result.styles.color), primary: color(styles.primary, result.styles.primary), accent: color(styles.accent, result.styles.accent), background: color(styles.background, "#ffffff"), paragraphSpacing: number(styles.paragraphSpacing, 9, 0, 36) };
   for (const key of ["firstHeader", "header", "firstFooter", "footer"] as const) { const region = object(object(raw.regions)[key]); result.regions[key] = { mode: region.mode === "custom" || region.mode === "none" ? region.mode : "brand", presetId: safeText(region.presetId, 191), content: region.content ? normalizeDoc(region.content) : EMPTY_DOC() }; }
   const reply = object(pack.replySlip); result.pack.replySlip = { enabled: reply.enabled === true, placement: reply.placement === "separate" ? "separate" : "attached", content: reply.content ? normalizeDoc(reply.content) : EMPTY_DOC() };
   for (const key of ["outerEnvelope", "returnEnvelope"] as const) { const source = object(pack[key]); result.pack[key] = { enabled: source.enabled === true, size: source.size === "DL" || source.size === "#9" ? source.size : "#10", window: source.window === true, addressX: number(source.addressX, .75, 0, 8), addressY: number(source.addressY, 1.5, 0, 4), addressWidth: number(source.addressWidth, 4, 1, 6), offsetX: number(source.offsetX, 0, -.5, .5), offsetY: number(source.offsetY, 0, -.5, .5) }; }
@@ -133,7 +138,7 @@ function normalizePresentation(value:unknown){const input=object(value);return {
 export function sourceIdentity(design: StudioDesign): string { return JSON.stringify({ body: design.body, styles: design.styles, regions: design.regions, brand: design.brandRevisionId, data: design.data, profile: design.profileId }); }
 export function emailReviewRequired(design: StudioDesign) { return Object.keys(design.email.overrides).length > 0 && design.email.reviewedSource !== sourceIdentity(design); }
 export function dimensions(page: StudioDesign["page"]): { width: number; height: number; bodyWidth: number; bodyHeight: number } {
-  let [width, height] = page.paper === "A4" ? [210 / 25.4, 297 / 25.4] : page.paper === "LEGAL" ? [8.5, 14] : [8.5, 11];
+  let [width, height] = page.paper === "A4" ? [210 / 25.4, 297 / 25.4] : page.paper === "LEGAL" ? [8.5, 14] : page.paper === "HALF_LETTER" ? [5.5, 8.5] : [8.5, 11];
   if (page.orientation === "landscape") [width, height] = [height, width];
   return { width: width * 96, height: height * 96, bodyWidth: (width - page.margins.left - page.margins.right) * 96, bodyHeight: (height - page.margins.top - page.margins.bottom) * 96 };
 }
