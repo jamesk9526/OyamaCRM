@@ -18,12 +18,12 @@ export default function LegacyCreateRedirect() {
       const match = /^\/oyama-(?:email|letters)\/templates\/([^/]+)/.exec(path);
       if (source && match) {
         const binding = await apiFetch<{ campaignId: string | null; contentId?: string }>(`/api/oyama-create/legacy/${source}/${encodeURIComponent(match[1])}`);
-        target = binding.campaignId ? `/oyama-create/campaigns/${binding.campaignId}?content=${binding.contentId}` : `/oyama-create/library/legacy?legacyId=${encodeURIComponent(match[1])}&legacyChannel=${source}`;
+        target = binding.campaignId ? `/oyama-create/campaigns/${binding.campaignId}?content=${binding.contentId}` : `/oyama-create/library/existing?legacyId=${encodeURIComponent(match[1])}&legacyChannel=${source}`;
       } else if (path.startsWith("/campaigns")) target = path.split("/")[2] ? `/oyama-create/fundraising/${path.split("/")[2]}` : "/oyama-create/fundraising";
-      else if (source === "LETTER") target = path.includes("/labels") ? "/oyama-create/tools/letters/labels" : path.includes("/generate") ? "/oyama-create/tools/letters/generate" : /\/(history|generated|queue)/.test(path) ? "/oyama-create/tools/letters/history" : path.includes("/settings") ? "/oyama-create/tools/letters/settings" : "/oyama-create/library/legacy";
+      else if (source === "LETTER") target = path.includes("/labels") ? "/oyama-create/tools/letters/labels" : path.includes("/generate") ? "/oyama-create/tools/letters/generate" : /\/(history|generated|queue)/.test(path) ? "/oyama-create/tools/letters/history" : path.includes("/settings") ? "/oyama-create/tools/letters/settings" : "/oyama-create/library/existing?legacyChannel=LETTER";
       else if (source === "EMAIL") {
         const campaign = /^\/oyama-email\/campaigns\/([^/]+)/.exec(path);
-        target = campaign ? `/oyama-create/tools/email/campaigns/${campaign[1]}` : path.includes("/queue") ? "/oyama-create/tools/email/queue" : path.includes("/settings") ? "/oyama-create/tools/email/settings" : path.includes("/calendar") || path.includes("/callender") ? "/oyama-create/calendar" : path.includes("/campaigns") ? "/oyama-create/tools/email/campaigns" : path.includes("/docs") ? "/oyama-create/tools/email/docs" : "/oyama-create/library/legacy";
+        target = campaign ? `/oyama-create/tools/email/campaigns/${campaign[1]}` : path.includes("/queue") ? "/oyama-create/tools/email/queue" : path.includes("/settings") ? "/oyama-create/tools/email/settings" : path.includes("/calendar") || path.includes("/callender") ? "/oyama-create/calendar" : path.includes("/campaigns") ? "/oyama-create/tools/email/campaigns" : path.includes("/docs") ? "/oyama-create/tools/email/docs" : "/oyama-create/library/existing?legacyChannel=EMAIL";
       }
       const url = new URL(target, window.location.origin);
       // Keep legacy query context without replacing Create's content identity.

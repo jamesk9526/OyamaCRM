@@ -13,6 +13,61 @@ const org='synthetic-import-org';
 const call=(method:'get'|'post'|'patch',path:string,body?:unknown,role='admin',orgId=org)=>request(app)[method]('/api/oyama-create'+path).set('Authorization','Bearer '+signAccessToken({sub:'admin',orgId,role,email:'synthetic@example.invalid'})).send(body as object);
 beforeEach(async()=>{resetCreateRows();await db.user.create({data:{id:'admin',organizationId:org,role:'admin',active:true,email:'synthetic@example.invalid'}});await db.organization.create({data:{id:org,name:'Synthetic organization'}});});
 describe('automatic Create import',()=>{
+ it('adds a standalone old letter to the template library under its exact original name',async()=>{
+  const name='Thank-You Letter May 26 — Churches';
+  await db.letterTemplate.create({data:{id:'exact-name-letter',organizationId:org,name,printSubject:'A different printed subject',printBody:'<p>Original</p>'}});
+  const result=await call('post','/legacy/import',{channel:'LETTER',legacyId:'exact-name-letter'});
+  expect(result.status).toBe(201);
+  const library=await call('get','/campaigns?templates=true');
+  expect(library.body.items.map((item:{name:string})=>item.name)).toEqual([name]);
+  expect(rows.createContent[0].name).toBe(name);
+  const listing=await call('get','/legacy?channel=LETTER');
+  expect(listing.body.items[0]).toMatchObject({name,campaignId:result.body.campaignId,contentId:result.body.contentId,canImport:true});
+ });
+ it('keeps same-ID originals from different libraries across a page boundary',async()=>{
+  await db.letterTemplate.create({data:{id:'shared-source-id',organizationId:org,name:'Letter original',printBody:'<p>Letter</p>'}});
+  await db.emailCampaign.create({data:{id:'shared-source-id',organizationId:org,name:'Email original',subject:'Subject',bodyHtml:'<p>Email</p>'}});
+  const first=await call('get','/legacy?limit=1');
+  const second=await call('get',`/legacy?limit=1&after=${first.body.nextCursor}`);
+  expect(new Set([...first.body.items,...second.body.items].map(item=>`${item.channel}:${item.id}`)).size).toBe(2);
+ });
+ it('keeps clinical and foreign letters out of direct imports and marks read-only sources',async()=>{
+  await db.letterTemplate.create({data:{id:'public-source',organizationId:org,name:'Donor letter',printBody:'<p>Donor</p>'}});
+  await db.letterTemplate.create({data:{id:'clinical-source',organizationId:org,name:'Clinical',crmScope:'CLINICAL'}});
+  await db.letterTemplate.create({data:{id:'foreign-source',organizationId:'foreign',name:'Another tenant'}});
+  await db.userPermission.create({data:{userId:'admin',permission:'letters.edit',granted:false}});
+  const response=await call('get','/legacy?channel=LETTER');
+  expect(response.body.items.map((item:{id:string})=>item.id)).toEqual(['public-source']);
+  expect(response.body.items[0].canImport).toBe(false);
+  expect((await call('post','/legacy/import',{channel:'LETTER',legacyId:'public-source'})).status).toBe(403);
+ });
+ it('finds original names beyond the first source page and focuses an old letter by ID',async()=>{
+  for(let index=0;index<45;index++)await db.letterTemplate.create({data:{id:`letter-${String(index).padStart(2,'0')}`,organizationId:org,name:`Original letter ${index}`,printBody:'<p>Original</p>'}});
+  const focused=await call('get','/legacy?channel=LETTER&id=letter-44');
+  expect(focused.body.items.map((item:{name:string})=>item.name)).toEqual(['Original letter 44']);
+  const search=await call('get','/legacy?channel=LETTER&q=Original%20letter%2044');
+  expect(search.body.items.map((item:{id:string})=>item.id)).toEqual(['letter-44']);
+  const first=await call('get','/legacy?channel=LETTER'),second=await call('get',`/legacy?channel=LETTER&after=${first.body.nextCursor}`);
+  expect(new Set([...first.body.items,...second.body.items].map(item=>item.id)).size).toBe(45);
+ });
+ it('retains the original email and letter names when verified companions share a Create template',async()=>{
+  await db.emailCampaign.create({data:{id:'named-email',organizationId:org,name:'May 2026 Newsletter — Email',subject:'Different subject',bodyHtml:'<p>Original email</p>'}});
+  await db.letterTemplate.create({data:{id:'named-letter',organizationId:org,name:'May 2026 Newletter',printSubject:'Different letter subject',printBody:'<p>Original letter</p>',printLayoutJson:{schema:'oyama-communication-roundtrip-v1',sourceTemplateId:'named-email'}}});
+  const email=await call('post','/legacy/import',{channel:'EMAIL',legacyId:'named-email'});
+  const letter=await call('post','/legacy/import',{channel:'LETTER',legacyId:'named-letter'});
+  expect(email.status).toBe(201);expect(letter.status).toBe(201);expect(letter.body.campaignId).toBe(email.body.campaignId);
+  expect(rows.createCampaign[0]).toMatchObject({name:'May 2026 Newsletter — Email',isTemplate:true});
+  expect(rows.createContent[0].name).toBe('May 2026 Newsletter — Email');
+  const listing=await call('get','/legacy');
+  expect(listing.body.items.map((item:{name:string})=>item.name)).toEqual(['May 2026 Newsletter — Email','May 2026 Newletter']);
+  expect(rows.createImportSource.map(item=>item.name)).toEqual(['May 2026 Newsletter — Email','May 2026 Newletter']);
+  expect(rows.createImportSourceRevision.map(item=>item.snapshotJson.record.name)).toEqual(['May 2026 Newsletter — Email','May 2026 Newletter']);
+  await db.createCampaign.update({where:{id:email.body.campaignId},data:{name:'Staff renamed the Create template'}});
+  await call('post','/legacy/import',{channel:'LETTER',legacyId:'named-letter'});
+  expect(rows.createCampaign).toHaveLength(1);expect(rows.createCampaign[0].name).toBe('Staff renamed the Create template');
+  expect(rows.letterTemplate[0].name).toBe('May 2026 Newletter');expect(rows.emailCampaign[0].name).toBe('May 2026 Newsletter — Email');
+  expect(rows.createDelivery).toHaveLength(0);
+ });
  it('imports letters and emails when legacy letterhead contains unfrozen images',async()=>{
   const headerHtml=`<p><img src="/uploads/branding/${org}/header.png" alt="Letterhead" onerror="unsafe()"></p>`;
   const footerHtml='<p><img src="https://example.invalid/footer.png" alt="Footer"></p>';

@@ -1,3 +1,10 @@
+## Original letter/email library import — 2026-11-05
+
+- [x] Connect the original letter/email libraries to Create Library with server-side search, focused ID lookup and pagination.
+- [x] Preserve exact names, distinct companion names, existing bindings, staff renames, source history and original records.
+- [x] Retain server-side tenant/clinical/ownership restrictions and permission-aware import controls; importing does not dispatch communications.
+- [x] Pass 78 focused API tests, focused lint and web/server TypeScript. Verify desktop/phone import flow with synthetic browser fixtures.
+- [ ] Deploy web/API together and verify actual old templates, companion names and import retry recovery with the organization's data. No schema change is required.
 ## Create letter/email import recovery — 2026-11-05
 
 - [x] Diagnose the live History failure (32 letter templates among 297 failed sources) and reproduce its frozen-image error in a regression test.

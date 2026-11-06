@@ -1,3 +1,10 @@
+## Original letter/email library import — 2026-11-05
+
+Create Library now links directly to **Import existing letters & emails**, reading the original Oyama libraries independently of the background inventory. Staff can choose Letters, Email or both, search original names on the server, page through older records and import/open a source through the existing validated conversion. Source-specific legacy links now focus the matching original by ID even beyond the first page. History retains import progress/review and also links to the direct importer.
+
+Imported reusable templates retain their original names rather than their subject lines. Verified companion letters/emails keep distinct original names, displayed in the Create content view. Existing bindings reopen without duplicates or overwriting later staff renames. Sent/scheduled communications retain historical behavior. Originals, permissions and print output remain unchanged; imports do not send messages.
+
+78 focused API tests, targeted lint and web/server TypeScript passed. Desktop/phone browser tests use synthetic fixtures for direct import, pagination, name search, error retry and both original name labels. See [verification](audit-artifacts/2026-11-05-create-original-library/verification.md). Web/API deployment and live inventory acceptance remain outstanding.
 ## Create letter/email import recovery — 2026-11-05
 
 Fixed the legacy letterhead image handling that prevented existing letters and emails from converting into Create. Editable brand imports now preserve sanitized header/footer image references; production PDFs continue requiring frozen images. The existing retry worker can recover affected failed sources without rewriting original letters/emails or sending communications. Reproduced the exact observed production error, then passed 55 focused import, branding and frozen-PDF checks. Deployment and live retry acceptance remain outstanding. See [verification and recovery steps](audit-artifacts/2026-11-05-create-letter-import-recovery/verification.md).

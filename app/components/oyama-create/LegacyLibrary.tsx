@@ -1,20 +1,82 @@
 "use client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, Download, Search } from "lucide-react";
 import { apiFetch } from "@/app/lib/auth-client";
-import { useCreateData } from "./use-create-data";
 import { Channels, Empty, Heading, Modal, Status } from "./ui";
-import { message, type Channel } from "./types";
-type Legacy = { id: string; channel: Channel; name: string; status: string; historical: boolean; isTemplate: boolean; campaignId: string | null };
+import { message } from "./types";
+import { useCreate } from "./CreateShell";
+import styles from "./LegacyLibrary.module.css";
+
+type Legacy = { id: string; channel: "EMAIL" | "LETTER"; name: string; status: string; historical: boolean; isTemplate: boolean; campaignId: string | null; contentId: string | null; canImport: boolean };
+type Page = { items: Legacy[]; hasMore: boolean; nextCursor: string | null };
+
+/** Reads original libraries independently of background conversion progress. */
 export default function LegacyLibrary() {
-  const resource = useCreateData<{ items: Legacy[]; limited: boolean }>("/api/oyama-create/legacy"); const router = useRouter(), query = useSearchParams();
-  const [search, setSearch] = useState(""), [selected, setSelected] = useState<Legacy | null>(null), [error, setError] = useState(""), [busy, setBusy] = useState(false);
-  const focusedId = query.get("legacyId");
-  const items = (resource.data?.items || []).filter(item => item.name.toLowerCase().includes(search.toLowerCase()) && (!focusedId || item.id === focusedId));
-  async function bringIn() { if (!selected) return; setBusy(true); setError(""); try { const result = await apiFetch<{ campaignId: string; contentId: string }>("/api/oyama-create/legacy/import", { method: "POST", body: JSON.stringify({ channel: selected.channel, legacyId: selected.id }) }); router.push(`/oyama-create/campaigns/${result.campaignId}?content=${result.contentId}`); } catch (error) { setError(message(error)); } finally { setBusy(false); } }
-  return <><Heading title="Bring your content together" subtitle="Existing email and donor letter content stays intact. Imported records keep their source IDs, original layout, and delivery history." action={<Link className="oc-button" href="/oyama-create/library">Back to library</Link>}/><div className="oc-toolbar"><div className="oc-search"><Search size={15}/><input type="search" aria-label="Search existing content" value={search} onChange={event => setSearch(event.target.value)} placeholder="Find an email or letter…"/></div>{focusedId && <Link href="/oyama-create/library/legacy" className="oc-button">Show all content</Link>}<Link className="oc-button" href="/oyama-email/templates?legacy=1">Email import / export</Link><Link className="oc-button" href="/oyama-create/tools/letters/history">Generated letters & PDFs</Link></div>{(error || resource.error) && <div className="oc-error" role="alert">{error || resource.error}</div>}<section className="oc-card"><div className="oc-card-heading"><h2>Existing content</h2><span className="oc-help">Companion grouping uses verified source IDs</span></div>{resource.loading ? <div className="oc-state" role="status">Loading source content…</div> : !items.length ? <Empty title="No matching source content">Existing email templates, executions, and donor letters appear here. Clinical records are excluded.</Empty> : <div className="oc-table-scroll"><table className="oc-table"><thead><tr><th>Content</th><th>Format</th><th>Original status</th><th>oyamaCreate</th></tr></thead><tbody>{items.map(item => <tr key={`${item.channel}:${item.id}`}><td><strong>{item.name}</strong><small>{item.historical ? "Historical execution · original delivery retained" : item.isTemplate ? "Reusable source template" : "Draft campaign"}</small></td><td><Channels channels={[item.channel]}/></td><td><Status status={item.status}/></td><td>{item.campaignId ? <Link className="oc-button small" href={`/oyama-create/campaigns/${item.campaignId}`}>Open <ArrowRight size={12}/></Link> : <button className="oc-button small" onClick={() => { setSelected(item); setError(""); }}><Download size={12}/>Bring into Create</button>}</td></tr>)}</tbody></table></div>}{resource.data?.limited && <p className="oc-help" style={{ padding: 16 }}>Showing the most recent 100 sources per format. Older records remain available through the existing libraries.</p>}</section><div className="oc-notice" style={{ marginTop: 18 }}>Native content is preserved as a reviewed layout. Add shared blocks to extend it, or use the original format editor. Sent content and generated PDFs are never rewritten. Duplicate historical content to begin a new campaign.</div>
-    {selected && <Modal title="Import existing content" close={() => { if (!busy) setSelected(null); }}><p><strong>{selected.name}</strong></p><p className="oc-help">This creates a campaign/template binding to the existing source without changing it. Only an explicit, verified round-trip relationship can group an email and letter. Ambiguous content stays separate for staff review.</p>{selected.historical && <p className="oc-notice">This execution remains read-only. You can duplicate it into a fresh campaign after import.</p>}{error && <p role="alert" className="oc-error">{error}</p>}<button className="oc-button primary" disabled={busy} onClick={() => void bringIn()}>{busy ? "Importing…" : "Import and open"}</button></Modal>}
+  const router = useRouter(), query = useSearchParams();
+  const { permissions } = useCreate();
+  const focusedId = query.get("legacyId") || "";
+  const focusedChannel = query.get("legacyChannel") || "";
+  const [search, setSearch] = useState("");
+  const [channel, setChannel] = useState(focusedChannel === "EMAIL" ? "EMAIL" : focusedChannel === "LETTER" || permissions.includes("letters.view") ? "LETTER" : "EMAIL");
+  const [data, setData] = useState<Page | null>(null);
+  const [selected, setSelected] = useState<Legacy | null>(null);
+  const [error, setError] = useState(""), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true);
+  const request = useRef(0);
+  const invalidate = useCallback(() => { request.current++; }, []);
+  const load = useCallback(async (after = "") => {
+    const params = new URLSearchParams({ q: search, channel });
+    if (focusedId) params.set("id", focusedId);
+    if (after) params.set("after", after);
+    const current = ++request.current;
+    setLoading(true); setError("");
+    try {
+      const next = await apiFetch<Page>(`/api/oyama-create/legacy?${params}`);
+      if (current !== request.current) return;
+      setData(previous => after && previous ? { ...next, items: [...previous.items, ...next.items.filter(item => !previous.items.some(old => old.id === item.id && old.channel === item.channel))] } : next);
+    } catch (value) { if (current === request.current) setError(message(value)); }
+    finally { if (current === request.current) setLoading(false); }
+  }, [search, channel, focusedId]);
+  useEffect(() => {
+    setData(null); setLoading(true);
+    const timer = setTimeout(() => void load(), 200);
+    return () => { clearTimeout(timer); invalidate(); };
+  }, [load, invalidate]);
+  async function bringIn() {
+    if (!selected) return;
+    setBusy(true); setError("");
+    try {
+      const result = await apiFetch<{ campaignId: string; contentId: string }>("/api/oyama-create/legacy/import", { method: "POST", body: JSON.stringify({ channel: selected.channel, legacyId: selected.id }) });
+      router.push(`/oyama-create/campaigns/${result.campaignId}?content=${result.contentId}`);
+    } catch (value) { setError(message(value)); }
+    finally { setBusy(false); }
+  }
+  return <>
+    <Heading title="Import existing letters & emails" subtitle="Choose from your original Oyama libraries. Original names, content and source history are retained." action={<Link className="oc-button" href="/oyama-create/library">Back to library</Link>}/>
+    <div className="oc-toolbar">
+      <div className="oc-search"><Search size={15} aria-hidden="true"/><input type="search" aria-label="Search original names" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search original template names…"/></div>
+      <label>Source library<select aria-label="Source library" value={channel} onChange={event => setChannel(event.target.value)}><option value="LETTER">Oyama Letters</option><option value="EMAIL">Oyama Email</option><option value="">Both libraries</option></select></label>
+      {focusedId && <Link href="/oyama-create/library/existing" className="oc-button">Show all templates</Link>}
+      <Link className="oc-button" href="/oyama-create/library/legacy">Import progress & review</Link>
+    </div>
+    {error && !selected && <div className="oc-error" role="alert">{error} <button type="button" className="oc-button small" onClick={() => void load()}>Try again</button></div>}
+    <section className={`oc-card ${styles.library}`} aria-label="Original letters and emails" aria-busy={loading}>
+      <div className="oc-card-heading"><h2>Original letters & emails</h2><span className="oc-help">Names shown exactly as saved</span></div>
+      {loading && !data ? <div className="oc-state" role="status">Loading original libraries…</div> : !data?.items.length ? <Empty title={error ? "Original library unavailable" : "No matching original content"}>Choose another library or search by the original name.</Empty> : <div className="oc-table-scroll"><table className="oc-table"><thead><tr><th>Original name</th><th>Format</th><th>Original status</th><th>Create library</th></tr></thead><tbody>{data.items.map(item => <tr key={`${item.channel}:${item.id}`}>
+        <td><strong>{item.name}</strong><small>{item.historical ? "Historical communication · retained for reference" : item.isTemplate ? "Reusable template" : "Draft campaign"}</small></td>
+        <td><Channels channels={[item.channel]}/></td><td><Status status={item.status}/></td>
+        <td>{item.campaignId ? <Link className="oc-button small" href={`/oyama-create/campaigns/${item.campaignId}${item.contentId ? `?content=${encodeURIComponent(item.contentId)}` : ""}`}>Open in Create <ArrowRight size={12}/></Link> : item.canImport ? <button type="button" className="oc-button small" onClick={() => { setSelected(item); setError(""); }}><Download size={12}/>Import to library</button> : <span className="oc-help">Import requires edit permission from the owner or administrator.</span>}</td>
+      </tr>)}</tbody></table></div>}
+      {data?.hasMore && <div className="oc-card-body"><button type="button" className="oc-button" disabled={loading} onClick={() => void load(data.nextCursor || "")}>{loading ? "Loading…" : "Load more originals"}</button></div>}
+    </section>
+    <p className="oc-notice">Existing templates keep their names. Only verified letter/email relationships are grouped; each original name is retained. Sent communications remain history. Importing does not send or schedule anything.</p>
+    <details className="oc-disclosure"><summary>Other import & history tools</summary><div className="oc-actions"><Link className="oc-button" href="/oyama-email/templates?legacy=1">Email file import / export</Link><Link className="oc-button" href="/oyama-create/tools/letters/history">Generated letters & PDFs</Link></div></details>
+    {selected && <Modal title="Import to Create library" close={() => { if (!busy) setSelected(null); }}>
+      <p><strong>{selected.name}</strong></p><p className="oc-help">This imports the original content under its saved name. The original remains unchanged. If it was already imported, Create reopens its existing binding.</p>
+      {selected.historical && <p className="oc-notice">This sent or scheduled communication stays in History. Duplicate it into a fresh draft to reuse it.</p>}
+      {error && <p role="alert" className="oc-error">{error}</p>}
+      <button type="button" className="oc-button primary" disabled={busy} onClick={() => void bringIn()}>{busy ? "Importing…" : "Import and open"}</button>
+    </Modal>}
   </>;
 }

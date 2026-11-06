@@ -8,14 +8,18 @@ import { emailRecordAccessible, reusableEmailRecord } from "./legacy.js";
 const router = Router();
 router.get("/legacy", route(async (req, res, org, actor) => {
   const limit=Math.min(100,Math.max(1,Number(req.query.limit)||40)),after=string(req.query.after),q=string(req.query.q).slice(0,191),channel=string(req.query.channel);
-  const permissions={email:await can(req,"view:communications"),letter:await can(req,"letters.view")};
-  const input={where:{organizationId:org,...(after?{id:{gt:after}}:{}),...(q?{name:{contains:q}}:{})},orderBy:{id:"asc" as const},take:limit+1};
+  const id=string(req.query.id);
+  const permissions={email:await can(req,"view:communications"),letter:await can(req,"letters.view"),editEmail:await can(req,"edit:communications"),editLetter:await can(req,"letters.edit")&&await can(req,"letters.create")};
+  const input={where:{organizationId:org,...(id?{id}:after?{id:{gt:after}}:{}),...(q?{name:{contains:q}}:{})},orderBy:{id:"asc" as const},take:limit+1};
   const emails=permissions.email&&channel!=="LETTER"?await prisma.emailCampaign.findMany(input):[];
   const letters=permissions.letter&&channel!=="EMAIL"?await prisma.letterTemplate.findMany({...input,where:{...input.where,crmScope:"DONOR"}}):[];
   const candidates=[...emails.filter(email=>emailRecordAccessible(email,actor,req.user!.role)).map(email=>({id:email.id,channel:"EMAIL",name:email.name,status:email.status,historical:email.status!=="DRAFT"||email.totalRecipients>0||!!email.sentAt||!!email.scheduledAt,isTemplate:reusableEmailRecord(email),updatedAt:email.updatedAt})),...letters.map(letter=>({id:letter.id,channel:"LETTER",name:letter.name,status:letter.status,historical:false,isTemplate:true,updatedAt:letter.updatedAt}))].sort((a,b)=>a.id.localeCompare(b.id));
-  const page=candidates.slice(0,limit),bindings=await prisma.createVariant.findMany({where:{organizationId:org,legacyId:{in:page.map(item=>item.id)}},select:{channel:true,legacyId:true,content:{select:{campaignId:true}}}});
+  const page=candidates.slice(0,limit);
+  // Keep same-ID sources from different tables together at a page boundary.
+  for(const item of candidates.slice(limit))if(item.id===page.at(-1)?.id)page.push(item);else break;
+  const bindings=await prisma.createVariant.findMany({where:{organizationId:org,legacyId:{in:page.map(item=>item.id)}},select:{channel:true,legacyId:true,contentId:true,content:{select:{campaignId:true}}}});
   const hasMore=candidates.length>limit||emails.length>limit||letters.length>limit;
-  res.json({items:page.map(item=>({...item,campaignId:bindings.find(binding=>binding.channel===item.channel&&binding.legacyId===item.id)?.content.campaignId||null})),hasMore,nextCursor:hasMore?(page.at(-1)?.id||emails.at(-1)?.id||letters.at(-1)?.id):null,limited:false});
+  res.json({items:page.map(item=>{const binding=bindings.find(binding=>binding.channel===item.channel&&binding.legacyId===item.id);const email=emails.find(email=>email.id===item.id);return {...item,campaignId:binding?.content.campaignId||null,contentId:binding?.contentId||null,canImport:item.channel==="LETTER"?permissions.editLetter:permissions.editEmail&&!!email&&emailRecordAccessible(email,actor,req.user!.role,true)};}),hasMore,nextCursor:hasMore?(page.at(-1)?.id||emails.at(-1)?.id||letters.at(-1)?.id):null,limited:false});
 }));
 router.get("/legacy/:channel/:id", route(async (req, res, org) => {
   const channel = param(req, "channel") as Channel; await demandChannels(req, [channel]);
