@@ -1,3 +1,12 @@
+## Standalone Letters and Email access restored — 2026-11-05
+
+Normal /oyama-letters and /oyama-email routes are excluded from Create's automatic redirect, regardless of Create's enabled setting. This covers templates, editors, review, generation, labels, history, campaign workflow and settings. Create remains available and now includes permission-aware links back to the original spaces. Existing app launcher/sidebar entries are retained. The original live libraries were opened with the pre-existing legacy=1 bypass and visibly contained 32 letter templates and 15 email templates; no content or delivery settings were changed. Full normal-navigation restoration requires deployment of the web changes.
+
+Initial conversion corrections also preserve old token syntax in setup/source views, resolve legacy fields in body/header HTML, retain recipient-mode custom headers, avoid adding a second automatic logo and share structured-region typography with PDF rendering. Synthetic two-recipient/two-page proofs passed recipient isolation, gift formatting, configured page numbering and clipped-header rejection. These focused checks do not establish complete editor/print fidelity for the user's existing letter. Keep the old workspaces available until the remaining acceptance work passes. See [evidence and remaining gaps](audit-artifacts/2026-11-05-standalone-communications/verification.md).
+## Oyama Create desktop foundation — 2026-11-05
+
+Created an independent C# / .NET 10 WPF application in Oyama_Create_Desktop_app with a blank resizable window. Letters, PDF output, email conversion, social workflows and authenticated CRM integration are planned, not implemented.
+
 ## Original letter/email library import — 2026-11-05
 
 Create Library now links directly to **Import existing letters & emails**, reading the original Oyama libraries independently of the background inventory. Staff can choose Letters, Email or both, search original names on the server, page through older records and import/open a source through the existing validated conversion. Source-specific legacy links now focus the matching original by ID even beyond the first page. History retains import progress/review and also links to the direct importer.

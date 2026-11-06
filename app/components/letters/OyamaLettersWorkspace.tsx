@@ -1346,7 +1346,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
         apiFetch<MergeFieldCatalogResponse>("/api/letters/merge-fields"),
         apiFetch<SignatureBlock[]>("/api/letters/signatures"),
         apiFetch<HeaderPreset[]>("/api/letters/header-presets"),
-        apiFetch<BrandingSettings>("/api/oyama-create/library/brand"),
+        apiFetch<BrandingSettings>("/api/settings/branding"),
         apiFetch<ConstituentLookup[]>("/api/constituents?limit=all").catch(() => []),
       ]);
       setMergeSections(fields.sections ?? []);
@@ -3508,7 +3508,7 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
       const [templateResult, fieldsResult, brandingResult, validationResult, historyResult] = await Promise.all([
         apiFetch<LetterTemplateDetail>(`/api/letters/templates/${templateId}`),
         apiFetch<MergeFieldCatalogResponse>("/api/letters/merge-fields"),
-        apiFetch<BrandingSettings>("/api/oyama-create/library/brand"),
+        apiFetch<BrandingSettings>("/api/settings/branding"),
         apiFetch<PublishValidationResult>(`/api/letters/templates/${templateId}/publish`, {
           method: "POST",
           body: JSON.stringify({ confirm: false }),
@@ -4107,7 +4107,7 @@ function GenerateWorkspace() {
         apiFetch<ConstituentLookup[]>("/api/constituents?limit=all").catch(() => []),
         apiFetch<RecipientListSummary[]>("/api/email-campaigns/lists").catch(() => []),
         apiFetch<ConstituentTagCatalog[]>("/api/constituents/tags/catalog").catch(() => []),
-        apiFetch<BrandingSettings>("/api/oyama-create/library/brand").catch(() => DEFAULT_BRANDING_SETTINGS),
+        apiFetch<BrandingSettings>("/api/settings/branding").catch(() => DEFAULT_BRANDING_SETTINGS),
       ]);
       setTemplates(templateRows);
       setGenerated(generatedRows);
@@ -6806,7 +6806,7 @@ function LettersOrganizationSettingsPanel() {
     setLoading(true);
     setError(null);
     try {
-      const brandingRow = await apiFetch<BrandingSettings>("/api/oyama-create/library/brand");
+      const brandingRow = await apiFetch<BrandingSettings>("/api/settings/branding");
       setBranding(normalizeBrandingSettings(brandingRow));
     } catch (requestError) {
       setError(errorMessage(requestError, "Failed to load Letters organization settings."));
@@ -6885,7 +6885,7 @@ function LettersPresetManager({ mode }: { mode: "headers" | "footers" }) {
     setError(null);
     try {
       const [brandingRow, headerRows, footerRows] = await Promise.all([
-        apiFetch<BrandingSettings>("/api/oyama-create/library/brand"),
+        apiFetch<BrandingSettings>("/api/settings/branding"),
         apiFetch<HeaderPreset[]>("/api/letters/header-presets"),
         apiFetch<FooterPreset[]>("/api/letters/footer-presets"),
       ]);

@@ -15,14 +15,14 @@ import { hydrateSourceHtml } from "./source-html.js";
 import { defaultDesign, normalizeDesign, sourceIdentity } from "./design.js";
 import { paragraph } from "./registry.js";
 import { STUDIO_PRESETS, studioPreset } from "./presets.js";
-import { brandForDesign, readBrand, readLegacyBrand, brandForStudio, baselineBrand } from "./brand-service.js";
+import { brandForDesign, readBrand, brandForStudio, baselineBrand } from "./brand-service.js";
 import { resolveStudioDonor } from "./donor.js";
 import { freezeStudioPrint, renderFrozenStudio } from "./print.js";
 import type { ArtifactKind, StudioDesign } from "./types.js";
 import { assertStudioAssetOwnership } from "./asset-ownership.js";
 import { managedAssetIssues } from "./asset-files.js";
 import { exportHtmlDocument, importHtmlDocument, type HtmlScope } from "./html-document.js";
-import { renderRegion } from "./render.js";
+import { renderRegion, regionIssues } from "./render.js";
 const router = Router();
 
 function legacyDesign(content: { documentJson: unknown }): StudioDesign {
@@ -107,6 +107,7 @@ router.post("/contents/:id/studio/preview", route(async (req, res, org) => {
   const variant=content.variants.find(item=>item.channel===channel),format=variantFrom(req.body.format||variant?.documentJson);
   const artifact=string(req.body.artifact)||"LETTER";if(!["LETTER","REPLY_SLIP","OUTER_ENVELOPE","RETURN_ENVELOPE"].includes(artifact))throw new CreateError(400,"Choose a supported appeal-pack piece.");
   const result=renderChannel(design,donor,brand,channel as Channel,format,artifact as ArtifactKind);
+  if (channel === "LETTER" && !["OUTER_ENVELOPE", "RETURN_ENVELOPE"].includes(artifact)) result.issues.push(...regionIssues(design, donor, brand));
   result.issues.push(...await managedAssetIssues(org,result.html));
   res.json({...result,donor,brand,contentRevision:content.revision,channel,...(channel==="LETTER"&&!["OUTER_ENVELOPE","RETURN_ENVELOPE"].includes(artifact)?{pageChrome:{header:renderRegion(design,donor,brand,"firstHeader"),footer:renderRegion(design,donor,brand,"firstFooter")}}:{})});
 }));

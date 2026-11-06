@@ -3,12 +3,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { apiFetch } from "@/app/lib/auth-client";
+import { shouldRedirectToCreate } from "@/app/lib/create-routing";
 export default function LegacyCreateRedirect() {
   const { user } = useAuth(); const path = usePathname(), query = useSearchParams(), router = useRouter();
   useEffect(() => {
-    if (!user || query.get("legacy") === "1" || path === "/communications") return;
-    const eligible = /^\/(oyama-email|oyama-letters|communications|campaigns)(\/|$)/.test(path);
-    if (!eligible) return;
+    if (!user || !shouldRedirectToCreate(path, query.get("legacy"))) return;
     let active = true;
     void (async () => {
       const bootstrap = await apiFetch<{ enabled: boolean }>("/api/oyama-create/bootstrap"); if (!bootstrap.enabled || !active) return;

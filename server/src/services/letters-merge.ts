@@ -340,12 +340,12 @@ export function unsupportedMergeFieldKeys(keys: string[]): string[] {
 }
 
 export interface RenderMergeFieldsOptions {
-  missingMode?: "blank" | "highlight";
+  missingMode?: "blank" | "highlight" | "preserve";
   missingFields?: Set<string>;
 }
 
 /** Replaces all supported placeholders while leaving unsupported tokens untouched.
- * Missing supported fields are always rendered as blank, while missingFields collects warnings.
+ * Missing supported fields default to blank; authoring previews can preserve their tokens.
  */
 export function renderMergeFields(template: string, values: Record<string, string>, options: RenderMergeFieldsOptions = {}): string {
   const renderToken = (displayKey: string, rawFilters: string | undefined, original: string): string => {
@@ -355,7 +355,7 @@ export function renderMergeFields(template: string, values: Record<string, strin
     const filtered = applyMergeFilters(values[canonical] ?? "", parseFilters(rawFilters));
     if (!filtered.trim()) {
       options.missingFields?.add(canonical);
-      return "";
+      return options.missingMode === "preserve" ? original : "";
     }
     return filtered;
   };
@@ -363,7 +363,7 @@ export function renderMergeFields(template: string, values: Record<string, strin
   return template
     .replace(FIELD_PATTERN, (full: string, key: string, rawFilters: string | undefined) => {
       const normalized = String(key ?? "").trim();
-      return renderToken(normalized, rawFilters, `{{${normalized}}}`);
+      return renderToken(normalized, rawFilters, options.missingMode === "preserve" ? full : `{{${normalized}}}`);
     })
     .replace(SIMPLE_BRACE_FIELD_PATTERN, (full: string, prefix: string, key: string, rawFilters: string | undefined) => (
       `${prefix}${renderToken(key, rawFilters, full.slice(prefix.length))}`

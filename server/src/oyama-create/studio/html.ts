@@ -22,6 +22,16 @@ export function restoreLegacyLogoBounds(html: string, logoUrl: string) {
   const logo = normalizePublicMediaUrl(logoUrl);
   const document = parseDocument(html);
   let changed = false;
+  // Older brand projection could wrap a complete legacy header and inject its logo again.
+  // Remove only that recognizable automatic wrapper's image, not intentional repeated artwork.
+  for (const wrapper of DomUtils.getElementsByTagName("div", document.children)) {
+    if (!/font-size:\s*8px/i.test(wrapper.attribs.style || "")) continue;
+    const children = wrapper.children.filter(node => "attribs" in node);
+    const [automatic, nested] = children;
+    if (!automatic || !nested || !("attribs" in automatic) || !("attribs" in nested) || automatic.name !== "img" || nested.name !== "div" || !/font-size:\s*8px/i.test(nested.attribs.style || "")) continue;
+    if (normalizePublicMediaUrl(automatic.attribs.src || "") !== logo || !/max-width:\s*140px/i.test(automatic.attribs.style || "")) continue;
+    if (DomUtils.getElementsByTagName("img", nested.children).some(image => normalizePublicMediaUrl(image.attribs.src || "") === logo)) { DomUtils.removeElement(automatic); changed = true; }
+  }
   for (const image of DomUtils.getElementsByTagName("img", document.children)) {
     const { src, style = "", width, height } = image.attribs;
     if (!src || normalizePublicMediaUrl(src) !== logo || width || height || /(?:^|;)\s*(?:(?:min|max)-)?(?:width|height)\s*:/i.test(style)) continue;

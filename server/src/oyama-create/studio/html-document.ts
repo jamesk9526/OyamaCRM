@@ -48,7 +48,7 @@ function sourceParts(design:StudioDesign,brand:BrandDocument,scope:HtmlScope,hyd
     const id=`${key}:${string(node.attrs?.studioId)||index}`,html=nodeHtml(materialized.content[index]||node,design.styles.primary);blocks.set(id,{node,html});return `<div data-oyama-block="${e(id)}">${html}</div>`;
   }).join("\n");
   const parts=new Map<string,string>();
-  if(scope==="SHARED"||scope==="LETTER")for(const key of regions)parts.set(key,design.regions[key].mode==="custom"?docHtml(design.regions[key].content,hydrated.regions[key].content,key):renderRegion(hydrated,{available:false,sensitiveAllowed:false,constituentId:null,name:"",salutation:"",address:"",entityKind:"",gift:null,giving:null,pledge:null,campaign:null,tags:[],recurring:null,responseCode:"",asOf:"2000-01-01T00:00:00Z"},brand,key));
+  if(scope==="SHARED"||scope==="LETTER")for(const key of regions)parts.set(key,design.regions[key].mode==="custom"?docHtml(design.regions[key].content,hydrated.regions[key].content,key):renderRegion(hydrated,{available:false,sensitiveAllowed:false,constituentId:null,name:"",salutation:"",address:"",entityKind:"",gift:null,giving:null,pledge:null,campaign:null,tags:[],recurring:null,responseCode:"",asOf:"2000-01-01T00:00:00Z"},brand,key,{authoring:true}));
   parts.set("body",docHtml(body,hydratedBody,"body"));
   if((scope==="SHARED"||scope==="LETTER")&&design.pack.replySlip.enabled)parts.set("replySlip",docHtml(design.pack.replySlip.content,hydrated.pack.replySlip.content,"replySlip"));
   return {parts,blocks};

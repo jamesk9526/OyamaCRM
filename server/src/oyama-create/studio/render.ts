@@ -53,6 +53,20 @@ export function renderStudio(design: StudioDesign, donor: DonorContext, brand: B
     const result = key === "tag" || key === "lastGiftBefore" ? value === true : op === "greaterThan" ? Number(value) > Number(expected) : op === "lessThan" ? Number(value) < Number(expected) : String(value) === expected;
     const matched = op === "isNot" ? !result : result; decisions.push({ nodeId: string(a.studioId), rule: `${key} ${op} ${expected}`, result: matched ? "Shown" : "Hidden" }); return matched;
   }
+  function legacyMerge(node: StudioNode, source: string, html = false): string {
+    const keys = collectMergeFieldKeys(source).filter(key => !email || !["unsubscribeUrl", "managePreferencesUrl", "preferencesUrl"].includes(key));
+    const sensitive = keys.some(key=>/^(gift\.|year\.|donor\.(?:total|lifetime))/.test(key));
+    if (keys.length && isPublic && keys.some(key=>!key.startsWith("organization.") && key!=="campaign.name" && key!=="currentDate")) return issue(node,"PRIVATE_CHANNEL","Recipient merge fields cannot appear in a public version.");
+    if (sensitive && !donor.sensitiveAllowed) { const warning = needsSensitive(node); if (donor.available) return warning; }
+      const mergeValues:Record<string,string> = {...donor.mergeValues,"donor.fullName":donor.name,"donor.salutation":donor.salutation,"donor.addressBlock":donor.address,"donor.entityKind":donor.entityKind,"household.name":donor.entityKind==="HOUSEHOLD"?donor.name:"","campaign.name":donor.campaign?.name||"","year":String(design.data.year),"currentDate":date(donor.asOf),"organization.name":string(brand.identity.organizationDisplayName),"organization.mission":string(brand.identity.missionStatement),"organization.address":[brand.identity.streetAddress1,brand.identity.streetAddress2,brand.identity.city,brand.identity.stateProvince,brand.identity.postalCode].filter(Boolean).join(", "),"organization.phone":string(brand.identity.contactPhone),"organization.email":string(brand.identity.contactEmail),"organization.website":string(brand.identity.websiteUrl),"organization.taxId":string(brand.identity.taxId)};
+      if(donor.sensitiveAllowed){if(donor.gift)Object.assign(mergeValues,{"gift.amount":money(donor.gift.amount),"gift.date":date(donor.gift.date),"gift.fund":donor.gift.fund,"gift.receiptNumber":donor.gift.receiptNumber,"gift.taxDeductibleAmount":donor.gift.deductible==null?"":money(donor.gift.deductible)});if(donor.giving)Object.assign(mergeValues,{"year.totalGiving":money(donor.giving.total),"year.numberOfGifts":String(donor.giving.count),"year.firstGiftDate":donor.giving.firstDate||"","year.lastGiftDate":donor.giving.lastDate||""});}
+    if (!donor.sensitiveAllowed) for (const key of Object.keys(mergeValues)) if (/^(gift\.|year\.|donor\.(?:total|lifetime))/.test(key)) delete mergeValues[key];
+    const missing = new Set<string>();
+    const values = html ? Object.fromEntries(Object.entries(mergeValues).map(([key, value]) => [key, e(value).replace(/\n/g, "<br>")])) : mergeValues;
+    const merged = renderMergeFields(source, values, { missingFields: missing, missingMode: donor.available ? "blank" : "preserve" });
+    for (const key of keys) if (!(key in mergeValues) || missing.has(key)) issue(node,"MERGE_CONTEXT",`Review recipient/context for legacy merge field ${key}.`);
+    return html ? sanitizeStudioHtml(merged) : e(merged).replace(/\n/g, "<br>");
+  }
   function render(node: StudioNode, applyOverride = true): string {
     const sourceId = string(node.attrs?.studioId);
     if (applyOverride && email && sourceId && Object.prototype.hasOwnProperty.call(design.email.overrides,sourceId)) node = design.email.overrides[sourceId];
@@ -70,7 +84,7 @@ export function renderStudio(design: StudioDesign, donor: DonorContext, brand: B
       if (!attrs.html) return issue(node, "SOURCE_HTML", attrs.sourceRevisionId ? "Open the preserved original HTML to review this source." : "Add the preserved HTML or restore its original before release.");
       if (attrs.reviewedHtml !== (attrs.sourceRevisionId || attrs.html)) issue(node, "HTML_REVIEW", "Compare and review the preserved HTML before release.");
       if (isPublic && collectMergeFieldKeys(string(attrs.html)).some(key => !key.startsWith("organization.") && !["campaign.name", "currentDate"].includes(key))) return issue(node, "PRIVATE_CHANNEL", "Private recipient fields cannot appear in public HTML.");
-      const html = sanitizeStudioHtml(string(attrs.html)).replace(/\{\{[^{}]+\}\}/g, token => /\{\{(?:unsubscribeUrl|managePreferencesUrl|preferencesUrl)\}\}/.test(token) ? token : render({ type: "text", text: token }, false));
+      const html = legacyMerge(node, sanitizeStudioHtml(string(attrs.html)), true);
       return `<div${common}>${sanitizeStudioHtml(html)}</div>`;
     }
     if (["studioButton", "studioFile", "studioVideo"].includes(type)) {
@@ -84,15 +98,7 @@ export function renderStudio(design: StudioDesign, donor: DonorContext, brand: B
     }
     if (type === "doc") return children();
     if (type === "text") {
-      const keys = collectMergeFieldKeys(node.text);
-      const sensitive = keys.some(key=>/^(gift\.|year\.|donor\.(?:total|lifetime))/.test(key));
-      if (keys.length && isPublic && keys.some(key=>!key.startsWith("organization.") && key!=="campaign.name" && key!=="currentDate")) return issue(node,"PRIVATE_CHANNEL","Recipient merge fields cannot appear in a public version.");
-      if (sensitive && !donor.sensitiveAllowed) return needsSensitive(node);
-      const mergeValues:Record<string,string> = {...donor.mergeValues,"donor.fullName":donor.name,"donor.salutation":donor.salutation,"donor.addressBlock":donor.address,"donor.entityKind":donor.entityKind,"household.name":donor.entityKind==="HOUSEHOLD"?donor.name:"","campaign.name":donor.campaign?.name||"","year":String(design.data.year),"currentDate":date(donor.asOf),"organization.name":string(brand.identity.organizationDisplayName),"organization.mission":string(brand.identity.missionStatement),"organization.address":[brand.identity.streetAddress1,brand.identity.streetAddress2,brand.identity.city,brand.identity.stateProvince,brand.identity.postalCode].filter(Boolean).join(", "),"organization.phone":string(brand.identity.contactPhone),"organization.email":string(brand.identity.contactEmail),"organization.website":string(brand.identity.websiteUrl),"organization.taxId":string(brand.identity.taxId)};
-      if(donor.sensitiveAllowed){if(donor.gift)Object.assign(mergeValues,{"gift.amount":String(donor.gift.amount),"gift.date":donor.gift.date,"gift.fund":donor.gift.fund,"gift.receiptNumber":donor.gift.receiptNumber,"gift.taxDeductibleAmount":donor.gift.deductible==null?"":String(donor.gift.deductible)});if(donor.giving)Object.assign(mergeValues,{"year.totalGiving":String(donor.giving.total),"year.numberOfGifts":String(donor.giving.count),"year.firstGiftDate":donor.giving.firstDate||"","year.lastGiftDate":donor.giving.lastDate||""});}
-      const missing=new Set<string>();const merged=renderMergeFields(node.text||"",mergeValues,{missingFields:missing});
-      for(const key of keys)if(!(key in mergeValues)||missing.has(key))issue(node,"MERGE_CONTEXT",`Review recipient/context for legacy merge field ${key}.`);
-      let html = e(merged);
+      let html = legacyMerge(node, node.text || "");
       for (const mark of node.marks || []) {
         const values = mark.attrs || {};
         if (["bold", "italic", "underline", "strike", "code", "superscript", "subscript"].includes(mark.type)) { const tags: Record<string, string> = { bold: "strong", italic: "em", underline: "u", strike: "s", code: "code", superscript: "sup", subscript: "sub" }; html = `<${tags[mark.type]}>${html}</${tags[mark.type]}>`; }
@@ -155,16 +161,20 @@ export function renderStudio(design: StudioDesign, donor: DonorContext, brand: B
   if (email && design.pack.replySlip.enabled) { adaptations.push({ code: "REPLY_SLIP_ADAPTED", message: "The printed reply slip and envelopes stay in the appeal pack; the email retains online giving actions.", blocking: false, channel: "EMAIL" }); }
   return { html, text: plainText(html), issues, adaptations, decisions };
 }
-export function renderRegion(design: StudioDesign, donor: DonorContext, brand: BrandDocument, key: keyof StudioDesign["regions"]): string {
+export function renderRegion(design: StudioDesign, donor: DonorContext, brand: BrandDocument, key: keyof StudioDesign["regions"], options: { authoring?: boolean } = {}): string {
   const region = design.regions[key], footer = key.toLowerCase().includes("footer"), e = (value: unknown) => escapeHtml(value == null ? "" : String(value));
   if (region.mode === "none"||region.mode==="custom"&&!region.content.content.length) return "";
   const profile = brand.profiles.find(item => item.id === design.profileId && item.channel === "LETTER") || brand.profiles.find(item => item.channel === "LETTER" && !item.resourceId);
   const selectedId = region.presetId || string(profile?.values[footer ? "footerPresetId" : "headerPresetId"]);
   const preset = selectedId ? brand.presets.find(item => item.id === selectedId && item.active && item.kind === (footer ? "footer" : "header")) : brand.presets.find(item => item.kind === (footer ? "footer" : "header") && item.active && item.isDefault);
   const doc = region.mode === "custom" ? region.content : preset?.content;
-  if (doc?.content.length) return renderStudio({ ...design, channels:undefined, body: doc, pack: { ...design.pack, replySlip: { ...design.pack.replySlip, enabled: false } } }, donor, brand).html;
+  if (doc?.content.length) return `<div class="studio-content">${renderStudio({ ...design, channels:undefined, body: doc, pack: { ...design.pack, replySlip: { ...design.pack.replySlip, enabled: false } } }, options.authoring ? emptyDonor(donor.asOf) : donor, brand).html}</div>`;
   const identity = { ...brand.identity, ...profile?.values };
-  if (region.mode === "brand" && preset?.legacyHtml) return footer ? preset.legacyHtml : restoreLegacyLogoBounds(preset.legacyHtml, string(identity.logoUrl));
+  if (region.mode === "brand" && preset?.legacyHtml) {
+    const html = footer ? preset.legacyHtml : restoreLegacyLogoBounds(preset.legacyHtml, string(identity.logoUrl));
+    if (options.authoring) return html;
+    return renderStudio({ ...design, channels: undefined, body: { type: "doc", content: [{ type: "studioHtml", attrs: { html, reviewedHtml: html } }] }, pack: { ...design.pack, replySlip: { ...design.pack.replySlip, enabled: false } } }, donor, brand).html;
+  }
   if (footer) return `<div style="font-family:Inter,Arial,sans-serif;font-size:8pt">${e(identity.footerLegalText || identity.legalOrganizationName || identity.organizationDisplayName)}<span style="float:right">Page <span data-studio-page-number>1</span> of <span data-studio-total-pages>1</span></span></div>`;
   return `<div style="font-family:Inter,Arial,sans-serif;font-size:9pt">${identity.logoUrl ? `<img src="${e(identity.logoUrl)}" alt="${e(identity.organizationDisplayName)}" style="max-width:140px;max-height:42px;object-fit:contain;vertical-align:middle;margin-right:12px">` : ""}<strong>${e(identity.organizationDisplayName)}</strong><div>${e([identity.streetAddress1, [identity.city, identity.stateProvince, identity.postalCode].filter(Boolean).join(" "), identity.contactPhone].filter(Boolean).join(" · "))}</div></div>`;
 }
@@ -176,7 +186,7 @@ export function regionIssues(design:StudioDesign,donor:DonorContext,brand:BrandD
     if(selected&&!preset)issues.push({code:"REGION_PRESET",message:`${key}: the explicitly selected brand preset is unavailable.`,blocking:true});
     const doc=region.mode==="custom"?region.content:preset?.content;
     if(doc){issues.push(...renderStudio({...design,channels:undefined,body:doc,pack:{...design.pack,replySlip:{...design.pack.replySlip,enabled:false}}},donor,brand).issues.map(issue=>({...issue,message:`${key}: ${issue.message}`})));if(walkNodes(doc).some(node=>node.type==="studioSignature"))issues.push({code:"REGION_SIGNATURE",message:"Place the signature in the letter body so it appears once, rather than in repeated page furniture.",blocking:true});}
-    if(region.mode==="brand"&&preset?.legacyHtml&&collectMergeFieldKeys(preset.legacyHtml).length)issues.push({code:"REGION_LEGACY_MERGE",message:`${key}: convert preserved merge fields to structured CRM fields before production.`,blocking:true});
+    if(region.mode==="brand"&&preset?.legacyHtml)issues.push(...renderStudio({...design,channels:undefined,body:{type:"doc",content:[{type:"studioHtml",attrs:{html:preset.legacyHtml,reviewedHtml:preset.legacyHtml}}]},pack:{...design.pack,replySlip:{...design.pack.replySlip,enabled:false}}},donor,brand).issues.map(issue=>({...issue,message:`${key}: ${issue.message}`})));
   }
   return issues;
 }

@@ -16,6 +16,15 @@ function fixture(): LetterSnapshot {
 }
 
 describe('production PDF frozen assets and chrome', () => {
+  it('imports original recipient/custom header modes without injecting a second authored logo', () => {
+    const snapshot=fixture();snapshot.branding.logoUrl='/api/public-media/branding/fixture-org/logo.png';
+    snapshot.header={customHtml:`<div><img src="${snapshot.branding.logoUrl}"><h1>Original header</h1></div>`,rightColumnMode:'RECIPIENT'};
+    const html=authoredLetterChromeHtml(snapshot,false);
+    expect(html.match(/<img\b/g)).toHaveLength(1);
+    expect(html).toContain('{{donor.fullName}}');expect(html).toContain('{{donor.addressBlock}}');
+    snapshot.header.rightColumnMode='CUSTOM';snapshot.header.rightColumnHtml='<p>Dear {first}</p>';
+    expect(authoredLetterChromeHtml(snapshot,false)).toContain('Dear {first}');
+  });
   it('preserves sanitized editable letterhead images while production still requires frozen bytes', () => {
     const snapshot = fixture();
     snapshot.header = { customHtml: '<p><img src="/uploads/branding/fixture-org/header.png" onerror="unsafe()"></p>' };

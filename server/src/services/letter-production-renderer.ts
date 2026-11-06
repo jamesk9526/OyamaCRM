@@ -3,6 +3,7 @@ import sanitizeHtml from "sanitize-html";
 import { chromium } from "playwright";
 import { PDFDocument } from "pdf-lib";
 import { type LetterSnapshot, string, LETTER_RENDERER_VERSION } from "./letter-production-contract.js";
+import { mapHtmlImageSources, normalizePublicMediaUrl } from "../lib/public-media.js";
 
 const escape = (value: unknown) => string(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]!));
 const LETTER_TAGS = ["p", "div", "span", "br", "strong", "b", "em", "i", "u", "s", "h1", "h2", "h3", "ul", "ol", "li", "table", "thead", "tbody", "tr", "th", "td", "img", "figure", "figcaption", "a", "hr", "blockquote"];
@@ -102,8 +103,13 @@ function renderLetterChromeHtml(snapshot: Pick<LetterSnapshot, "branding" | "ass
     ...(source.showWebsite !== false ? [b.websiteUrl] : []),
     ...(footer && source.showTaxId === true ? [b.taxId] : []),
   ].filter(value => typeof value === "string" && value).map(escape).join(" · ");
-  const logoHtml = !footer && logo ? `<img src="${escape(logo)}" style="max-width:140px;max-height:35px;vertical-align:middle;margin-right:12px">` : "";
-  return `<div style="box-sizing:border-box;font-family:Arial,sans-serif;font-size:8px;width:100%;padding:0 ${snapshot.layout.margins.right}in 0 ${snapshot.layout.margins.left}in;color:#243b58">${authoredImages ? sanitizeLetterHtml(logoHtml, { authoredImages: true }) : logoHtml}${custom ? sanitizeLetterHtml(custom, { authoredImages }) : `<strong>${escape(label)}</strong><div>${contact}</div>`}${footer && source.showPageNumber !== false ? '<span style="float:right">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>' : ""}</div>`;
+  let customHasLogo = false;
+  if (authoredImages && logo) mapHtmlImageSources(string(source.customHtml), src => { if (normalizePublicMediaUrl(src) === normalizePublicMediaUrl(logo)) customHasLogo = true; return src; });
+  const logoHtml = !footer && logo && !customHasLogo ? `<img src="${escape(logo)}" style="max-width:140px;max-height:35px;vertical-align:middle;margin-right:12px">` : "";
+  const left = `${authoredImages ? sanitizeLetterHtml(logoHtml, { authoredImages: true }) : logoHtml}${custom ? sanitizeLetterHtml(custom, { authoredImages }) : `<strong>${escape(label)}</strong><div>${contact}</div>`}`;
+  const right = authoredImages && !footer ? source.rightColumnMode === "RECIPIENT" ? '<strong>{{donor.fullName}}</strong><div>{{donor.addressBlock}}</div>' : source.rightColumnMode === "CUSTOM" ? sanitizeLetterHtml(string(source.rightColumnHtml), { authoredImages: true }) : "" : "";
+  const content = right ? `<table style="width:100%;border-collapse:collapse"><tr><td style="width:60%;vertical-align:top">${left}</td><td style="width:40%;vertical-align:top;text-align:right">${right}</td></tr></table>` : left;
+  return `<div style="box-sizing:border-box;font-family:Arial,sans-serif;font-size:8px;width:100%;padding:0 ${snapshot.layout.margins.right}in 0 ${snapshot.layout.margins.left}in;color:#243b58">${content}${footer && source.showPageNumber !== false ? '<span style="float:right">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>' : ""}</div>`;
 }
 
 /** Called only by the dedicated production worker. Every browser has a hard lifetime. */

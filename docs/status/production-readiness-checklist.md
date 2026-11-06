@@ -1,3 +1,16 @@
+## Standalone communication access / Create fidelity — 2026-11-05
+
+- [x] Keep original Letters/Email routes out of automatic Create redirects, with links from Create and retained existing app navigation.
+- [x] Open and inspect both production libraries using legacy=1; 32 letter templates and 15 email templates were visible. No production records or dispatch settings were changed.
+- [x] Regression-check original body/header merge tokens, authored logo duplication, sensitive-data restrictions, custom header modes and production frozen assets.
+- [x] Generate/rasterize two synthetic two-page proofs; verify recipient isolation, gift formatting, signatures, configured footer numbering and clipped-header rejection.
+- [ ] Deploy web changes so normal legacy navigation stays in the original spaces without the bypass query.
+- [ ] Before treating Create as a replacement, compare the user's actual original letter against its converted source, editable header/body, multi-recipient preview and final PDF. Existing custom drafts must be reviewed rather than silently replaced.
+- [ ] Finish full desktop/mobile editor-to-PDF layout comparison, all original merge-field/context coverage, header sizing, envelopes/labels and printer acceptance. No claim of perfect print fidelity is made by these focused corrections.
+## Oyama Create desktop foundation — 2026-11-05
+
+Created an independent C# / .NET 10 WPF application in Oyama_Create_Desktop_app with a blank resizable window. Letters, PDF output, email conversion, social workflows and authenticated CRM integration are planned, not implemented.
+
 ## Original letter/email library import — 2026-11-05
 
 - [x] Connect the original letter/email libraries to Create Library with server-side search, focused ID lookup and pagination.

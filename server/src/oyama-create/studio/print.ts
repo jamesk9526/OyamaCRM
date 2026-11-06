@@ -7,7 +7,7 @@ import { renderEnvelope } from "./envelope.js";
 import { freezeAsset, ProductionError } from "../../services/letter-production.js";
 import { channelDesign, defaultDesign, dimensions, walkNodes } from "./design.js";
 import { renderStudio, renderRegion, givingLink, regionIssues, designSensitive } from "./render.js";
-import { STUDIO_REGION_INSET_PX, studioContentCss } from "./layout.js";
+import { STUDIO_REGION_INSET_PX, studioContentCss, studioRegionCss } from "./layout.js";
 import type { ArtifactKind, BrandDocument, DonorContext, FrozenStudioPrint, StudioDesign } from "./types.js";
 
 export async function freezeStudioPrint(org: string, design: StudioDesign, donor: DonorContext, brand: BrandDocument, kind: ArtifactKind = "LETTER", sample = false): Promise<FrozenStudioPrint> {
@@ -15,7 +15,7 @@ export async function freezeStudioPrint(org: string, design: StudioDesign, donor
   if (url && [channelDesign(design, "LETTER").body, design.pack.replySlip.content].flatMap(walkNodes).some(node => node.type === "studioQr")) qrImages[url] = await QRCode.toDataURL(new URL(url, process.env.NEXT_PUBLIC_APP_URL || process.env.FRONTEND_ORIGIN || "http://localhost:3000").toString(), { errorCorrectionLevel: "M", margin: 4, width: 384 });
   const rendered = renderStudio(design, donor, brand, { channel: "LETTER", artifact: kind, qrImages, sample });
   rendered.issues.push(...regionIssues(design,donor,brand));
-  const snapshot: FrozenStudioPrint = { sensitive:designSensitive(design)||brand.presets.some(preset=>designSensitive({...design,body:preset.content})), version: 1, kind, width: metrics.width / 96, height: metrics.height / 96, margins: { ...design.page.margins }, styles: { ...design.styles }, html: rendered.html, headers: [renderRegion(design, donor, brand, "firstHeader"), renderRegion(design, donor, brand, "header")], footers: [renderRegion(design, donor, brand, "firstFooter"), renderRegion(design, donor, brand, "footer")], assets: {}, issues: rendered.issues, responseCode: donor.responseCode, brandRevisionId: design.brandRevisionId };
+  const snapshot: FrozenStudioPrint = { sensitive:designSensitive(design)||brand.presets.some(preset=>designSensitive({...design,body:preset.legacyHtml?{type:"doc",content:[{type:"studioHtml",attrs:{html:preset.legacyHtml}}]}:preset.content})), version: 1, kind, width: metrics.width / 96, height: metrics.height / 96, margins: { ...design.page.margins }, styles: { ...design.styles }, html: rendered.html, headers: [renderRegion(design, donor, brand, "firstHeader"), renderRegion(design, donor, brand, "header")], footers: [renderRegion(design, donor, brand, "firstFooter"), renderRegion(design, donor, brand, "footer")], assets: {}, issues: rendered.issues, responseCode: donor.responseCode, brandRevisionId: design.brandRevisionId };
   if (kind === "OUTER_ENVELOPE" || kind === "RETURN_ENVELOPE") {
     const renderedEnvelope=renderEnvelope(design,donor,brand,kind,sample);
     snapshot.width=renderedEnvelope.width;snapshot.height=renderedEnvelope.height;
@@ -51,10 +51,10 @@ export async function renderFrozenStudio(snapshot: FrozenStudioPrint, sample = f
       const target = output.getPage(index);
       for (const [footer, source, inches] of [[false, snapshot.headers[index ? 1 : 0], snapshot.margins.top], [true, snapshot.footers[index ? 1 : 0], snapshot.margins.bottom]] as const) {
         if (!source || inches <= 0) continue;
-        const html = source.replace(/<span[^>]*(?:data-studio-page-number|data-studio-total-pages)[^>]*>[\s\S]*?<\/span>/g, "").replace(/Page\s+\s*of\s*/g, ""), key = `${footer}:${html}`;
+        const html = source.replace(/(<span[^>]*data-studio-page-number[^>]*>)[\s\S]*?<\/span>/g, `$1${index + 1}</span>`).replace(/(<span[^>]*data-studio-total-pages[^>]*>)[\s\S]*?<\/span>/g, `$1${output.getPageCount()}</span>`), key = `${footer}:${html}`;
         if (!strips.has(key)) {
           await page.setViewportSize({ width: Math.round(snapshot.width * 96), height: 160 });
-          await page.setContent(`<html><head><style>${fonts}*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;font-size:9pt}</style></head><body><div id="chrome" style="padding:${STUDIO_REGION_INSET_PX}px ${snapshot.margins.right}in 0 ${snapshot.margins.left}in">${frozenHtml(snapshot, html)}</div></body></html>`);
+          await page.setContent(`<html><head><style>${fonts}${studioContentCss(design)}${studioRegionCss("#chrome")}body{margin:0}</style></head><body><div id="chrome" style="padding:${STUDIO_REGION_INSET_PX}px ${snapshot.margins.right}in 0 ${snapshot.margins.left}in">${frozenHtml(snapshot, html)}</div></body></html>`);
           await page.evaluate(async () => { await document.fonts.ready; await Promise.all(Array.from(document.images).map(image => image.decode())); });
           const height = await page.evaluate(() => document.getElementById("chrome")!.getBoundingClientRect().height);
           if (height > inches * 96 + 2) {
@@ -67,7 +67,6 @@ export async function renderFrozenStudio(snapshot: FrozenStudioPrint, sample = f
         }
         target.drawPage(strips.get(key)!, { x: 0, y: footer ? 0 : target.getHeight() - inches * 72, width: snapshot.width * 72, height: inches * 72 });
       }
-      if (snapshot.kind === "LETTER" || snapshot.kind === "REPLY_SLIP") target.drawText(`Page ${index + 1} of ${output.getPageCount()}`, { x: target.getWidth() - snapshot.margins.right * 72 - 70, y: 12, size: 8, font, color: rgb(.18, .25, .35) });
       if (sample) target.drawText("SAMPLE PROOF", { x: 10, y: 10, size: 8, font, color: rgb(.6, .2, .15) });
     }
     output.setProducer("oyamaCreate Studio Chromium v1"); return { bytes: Buffer.from(await output.save()), pageCount: output.getPageCount(), warnings: snapshot.issues.filter(issue => !issue.blocking).map(issue => issue.message) };

@@ -56,7 +56,7 @@ export function convertLegacy(record: EmailCampaign | LetterTemplate, channel: "
     design.regions.firstFooter.presetId = design.regions.footer.presetId = letter.footerPresetId || "";
     if (letter.documentSchemaVersion === 2 && letter.documentJson) {
       const remap = (node: StudioNode): StudioNode => node.type === "mergeField"
-        ? { type: "text", text: `{{${string(node.attrs?.token)}}}` }
+        ? { type: "text", text: /^(?:\{[^{}]+\}|\{\{[^{}]+\}\}|\/\/\w+)$/.test(string(node.attrs?.token)) ? string(node.attrs?.token) : `{{${string(node.attrs?.token)}}}` }
         : { ...node, ...(node.type !== "text" ? { attrs: { ...node.attrs, studioId: id() } } : {}), ...(node.content ? { content: node.content.map(remap) } : {}) };
       try { design.body = normalizeDoc(remap(letter.documentJson as StudioDoc)); } catch { design.body = htmlDoc(originalHtml); diagnostics.push("Some structured letter features require preserved HTML; compare the original."); }
     } else design.body = htmlDoc(originalHtml);
