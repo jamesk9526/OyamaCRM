@@ -656,7 +656,7 @@ const LETTERS_SIDEBAR_ITEMS = [
   { label: "Template Library", href: "/oyama-letters" },
   { label: "Generate Letters", href: "/oyama-letters/generate" },
   { label: "Generated Letters", href: "/oyama-letters/generated" },
-  { label: "Mailing Labels", href: "/oyama-letters/labels" },
+  { label: "Mailing Labels", href: "/oyama-create/labels" },
   { label: "Docs & Walkthroughs", href: "/oyama-letters/docs" },
   { label: "Settings", href: "/oyama-letters/settings" },
 ];
@@ -723,7 +723,7 @@ function LettersMobileNav({ activeView }: { activeView: WorkspaceView }) {
         {LETTERS_SIDEBAR_ITEMS.map((item) => {
           const active = isActiveRoute(item.href)
             || (item.href === "/oyama-letters/generate" && activeView === "generate")
-            || (item.href === "/oyama-letters/labels" && activeView === "labels")
+            || (item.href === "/oyama-create/labels" && activeView === "labels")
             || (item.href === "/oyama-letters/docs" && activeView === "howto")
             || (item.href === "/oyama-letters/settings" && activeView === "settings");
           return (
@@ -781,7 +781,7 @@ function LettersSidebar({
         {LETTERS_SIDEBAR_ITEMS.map((item) => {
           const active = isActiveRoute(item.href)
             || (item.href === "/oyama-letters/generate" && activeView === "generate")
-            || (item.href === "/oyama-letters/labels" && activeView === "labels")
+            || (item.href === "/oyama-create/labels" && activeView === "labels")
             || (item.href === "/oyama-letters/docs" && activeView === "howto")
             || (item.href === "/oyama-letters/settings" && activeView === "settings");
           return (

@@ -33,7 +33,7 @@ const destinations = [
   ["Home", "/oyama-create"], ["Campaigns", "/oyama-create/campaigns"], ["Library", "/oyama-create/library"],
   ["Import originals", "/oyama-create/library/existing"], ["Audiences", "/oyama-create/audiences"], ["Calendar", "/oyama-create/calendar"],
   ["Delivery", "/oyama-create/delivery"], ["Print production", "/oyama-create/print-production"], ["History", "/oyama-create/history"],
-  ["Trash", "/oyama-create/trash"], ["Results", "/oyama-create/results"], ["Settings", "/oyama-create/settings"], ["All apps", "/apps"],
+  ["Labels & sheet settings", "/oyama-create/labels"], ["Trash", "/oyama-create/trash"], ["Results", "/oyama-create/results"], ["Settings", "/oyama-create/settings"], ["All apps", "/apps"],
 ];
 export default function WorkspaceFrame(props: Props) {
   const { user } = useAuth(), { permissions } = useCreate(), router = useRouter();

@@ -17,6 +17,7 @@ const nav = [
   { label: "Home", href: "/oyama-create", icon: Home }, { label: "Campaigns", href: "/oyama-create/campaigns", icon: Megaphone },
   { label: "Library", href: "/oyama-create/library", icon: LayoutTemplate }, { label: "Audiences", href: "/oyama-create/audiences", icon: Users },
   { label: "Calendar", href: "/oyama-create/calendar", icon: CalendarDays }, { label: "Delivery", href: "/oyama-create/delivery", icon: Send },
+  { label: "Labels", href: "/oyama-create/labels", icon: LayoutTemplate },
   { label: "History", href: "/oyama-create/history", icon: FileText },
   { label: "Trash", href: "/oyama-create/trash", icon: Trash2 },
   { label: "Results", href: "/oyama-create/results", icon: ChartNoAxesCombined }, { label: "Settings", href: "/oyama-create/settings", icon: Settings2 },

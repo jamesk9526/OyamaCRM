@@ -21,6 +21,7 @@ import LibraryItems from "./LibraryItems";
 import TrashAction from "./TrashAction";
 import PrintProduction from "./PrintProduction";
 import CampaignCalendar from "./CampaignCalendar";
+const LabelMaker = dynamic(() => import("@/app/components/letters/MailMergeLabelsWorkspace"), { ssr: false });
 const EmailTools = dynamic(() => import("@/app/components/oyama-email/OyamaEmailWorkspace"), { ssr: false });
 const LetterTools = dynamic(() => import("@/app/components/letters/OyamaLettersWorkspace"), { ssr: false });
 const FinancialCampaigns = dynamic(() => import("@/app/campaigns/page"));
@@ -35,6 +36,7 @@ export default function CreateWorkspace({ segments }: { segments: string[] }) {
   if (view === "library" && segments[1] === "items") return <LibraryItems/>;
   if (view === "library" && segments[1] === "existing") return <LegacyLibrary/>;
   if (view === "delivery") return <DeliveryWorkspace/>;
+  if (view === "labels" || (view === "tools" && segments[1] === "letters" && segments[2] === "labels")) return <LabelMaker create/>;
   if (view === "settings") return <ConnectionSettings/>;
   if (view === "calendar") return <CampaignCalendar/>;
   if (view === "audiences") return segments[1] === "manage" ? <><Heading title="Audience lists" subtitle="Manage saved selections used by every campaign channel."/><ContactsManager/></> : <Audiences/>;

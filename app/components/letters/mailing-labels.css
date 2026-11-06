@@ -1,0 +1,19 @@
+.oc-label-maker { --label-accent:#126f68; color:#2b4150; font:13px/1.5 "Segoe UI",Arial,sans-serif; }
+.oc-label-maker header { border-color:#dfe5e9; }
+.oc-label-maker header h1 { font-size:24px; letter-spacing:-.025em; }
+.oc-label-maker :is(button,select,input) { font:inherit; border-radius:5px; }
+.oc-label-maker button { min-height:36px; }
+.oc-label-maker button:focus-visible,.oc-label-maker select:focus-visible,.oc-label-maker input:focus-visible { outline:2px solid var(--label-accent); outline-offset:3px; }
+.oc-label-maker-create { padding:0; }
+.oc-label-maker-create header>div:first-child>p:first-child { color:var(--label-accent); }
+.oc-label-maker-create header button { background:var(--label-accent); }
+.oc-label-maker-create thead { background:#edf3f3; color:#334c59; }
+.oc-label-maker-create aside { min-width:0; }
+.oc-label-proof { min-width:0; }
+.oc-label-proof-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin:16px 0 10px; }
+.oc-label-proof-heading h2 { font-weight:650; }
+.oc-label-proof-heading button,.oc-label-save { border:1px solid #ccdcd8; background:#fff; color:#126f68; padding:6px 12px; }
+.oc-label-save { margin-top:10px; }
+.oc-label-maker :is(button:disabled) { opacity:.5; cursor:default; }
+@media(min-width:1100px) { .oc-label-maker>div>section { grid-template-columns:minmax(0,1fr) minmax(350px,470px); } }
+@media(max-width:600px) { .oc-label-maker header h1 { font-size:21px; } .oc-label-maker header button { width:100%; } }

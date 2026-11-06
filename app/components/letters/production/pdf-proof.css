@@ -1,0 +1,6 @@
+/* PDF raster dimensions and text geometry belong to PDF.js, independent of app image rules. */
+.letter-pdf-viewer canvas { display:block; max-width:none; max-height:none; object-fit:initial; }
+.letter-pdf-viewer .textLayer { position:absolute; inset:0; text-align:initial; }
+.letter-pdf-viewer { color:#2b4150; color-scheme:light; }
+.letter-pdf-viewer :is(button,select) { font:12px/1.4 "Segoe UI",Arial,sans-serif; }
+.letter-pdf-viewer:fullscreen { overflow:auto; background:#edf2f5; }

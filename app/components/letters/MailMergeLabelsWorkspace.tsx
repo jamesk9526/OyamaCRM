@@ -3,8 +3,11 @@
 // Ordered selections are retained here. For labels matched to a letter PDF, use Labels in letter order in the generation workspace; it resolves exact generated letter IDs server-side.
 
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useAuth } from "@/app/components/auth/AuthProvider";
+import LetterProofViewer from "./production/LetterProofViewer";
+import "./mailing-labels.css";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import { getConstituentDisplayName } from "@/app/components/constituents/constituent-utils";
 import { resolveAudienceListConstituents } from "@/app/components/letters/mail-merge-audience";
@@ -64,7 +67,11 @@ function responseFileName(response: Response): string {
 }
 
 /** Dedicated recipient review and Avery 5160 PDF merge tool. */
-export default function MailMergeLabelsWorkspace() {
+export default function MailMergeLabelsWorkspace({ create = false }: { create?: boolean }) {
+  const { user } = useAuth();
+  const preferenceKey = `oyama-create:labels:${user?.organizationId}:${user?.id}`;
+  const [proof, setProof] = useState<{ url: string; fingerprint: string; name: string } | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
   const [constituents, setConstituents] = useState<LabelConstituent[]>([]);
   const [lists, setLists] = useState<AudienceListSummary[]>([]);
   const [selectedListId, setSelectedListId] = useState("");
@@ -77,6 +84,20 @@ export default function MailMergeLabelsWorkspace() {
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(preferenceKey) || "null");
+      if (Number.isInteger(saved?.startPosition) && saved.startPosition >= 1 && saved.startPosition <= 30) setStartPosition(saved.startPosition);
+      setShowGuides(saved?.showGuides === true);
+    } catch { /* Optional sheet preferences. */ }
+  }, [preferenceKey]);
+  useEffect(() => () => { if (proof) URL.revokeObjectURL(proof.url); }, [proof]);
+  useEffect(() => () => requestRef.current?.abort(), []);
+  function saveSheetPreferences() {
+    try { localStorage.setItem(preferenceKey, JSON.stringify({ startPosition, showGuides })); setNotice("Sheet settings saved for this account on this device."); }
+    catch { setError("This browser could not save sheet settings."); }
+  }
 
   useEffect(() => {
     let active = true;
@@ -105,7 +126,7 @@ export default function MailMergeLabelsWorkspace() {
   const printableSelectedRows = useMemo(() => selectedRows.filter((row) => getLabelEligibility(row, ignoreSuppressions).ready), [ignoreSuppressions, selectedRows]);
   const unavailableSummary = useMemo(() => unavailableLabelReasonSummary(selectedRows, ignoreSuppressions), [ignoreSuppressions, selectedRows]);
   const allVisibleSelected = visibleRows.length > 0 && visibleRows.every((row) => selectedIds.has(row.id));
-  const previewSlots = Array.from({ length: 30 }, (_, slot) => slot < startPosition - 1 ? null : printableSelectedRows[slot - (startPosition - 1)] ?? null);
+  const fingerprint = JSON.stringify({ recipients: printableSelectedRows, startPosition, showGuides, ignoreSuppressions });
   const pageCount = printableSelectedRows.length ? Math.ceil((startPosition - 1 + printableSelectedRows.length) / 30) : 0;
 
   function toggleRecipient(id: string) {
@@ -167,14 +188,22 @@ export default function MailMergeLabelsWorkspace() {
     }
   }
 
-  async function downloadLabels() {
-    if (!printableSelectedRows.length) return;
+  async function downloadLabels(download = true) {
+    if (!printableSelectedRows.length || requestRef.current) return;
+    const controller = new AbortController();
+    requestRef.current = controller;
     setWorking(true);
     setError(null);
     setNotice(null);
     try {
+      if (proof?.fingerprint === fingerprint) {
+        if (download) { const link = document.createElement("a"); link.href = proof.url; link.download = proof.name; link.click(); }
+        return;
+      }
+      const requestedFingerprint = fingerprint;
       const response = await apiFetchResponse("/api/letters/labels/avery-5160.pdf", {
         method: "POST",
+        signal: controller.signal,
         body: JSON.stringify({ constituentIds: printableSelectedRows.map((row) => row.id), startPosition, showGuides, ignoreSuppressions }),
       });
       if (!response.ok) {
@@ -182,20 +211,23 @@ export default function MailMergeLabelsWorkspace() {
         throw new Error(payload?.error?.message ?? "Unable to create the Avery 5160 PDF.");
       }
       const blob = await response.blob();
+      if (!blob.size || !response.headers.get("content-type")?.includes("application/pdf")) throw new Error("The server did not return a label PDF.");
+      const { PDFDocument } = await import("pdf-lib");
+      await PDFDocument.load(await blob.arrayBuffer());
+      if (controller.signal.aborted) return;
       const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = responseFileName(response);
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      const name = responseFileName(response);
+      setProof({ url, name, fingerprint: requestedFingerprint });
+      if (download) {
+        const link = document.createElement("a"); link.href = url; link.download = name;
+        document.body.appendChild(link); link.click(); link.remove();
+      }
       const overrideNote = ignoreSuppressions && suppressedSelectedRows.length ? ` ${suppressedSelectedRows.length} mail suppression${suppressedSelectedRows.length === 1 ? " was" : "s were"} overridden for this PDF only.` : "";
       setNotice(`Avery 5160 PDF created with ${printableSelectedRows.length} label${printableSelectedRows.length === 1 ? "" : "s"} across ${pageCount} sheet${pageCount === 1 ? "" : "s"}.${overrideNote}`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to create the Avery 5160 PDF.");
     } finally {
+      requestRef.current = null;
       setWorking(false);
     }
   }
@@ -203,11 +235,11 @@ export default function MailMergeLabelsWorkspace() {
   if (loading) return <div className="flex min-h-[520px] items-center justify-center text-sm font-semibold text-slate-500">Loading mailing-label recipients...</div>;
 
   return (
-    <main className="min-w-0 flex-1 overflow-x-hidden p-3 sm:p-5 xl:p-6">
+    <section aria-label="Mailing label maker" className={`oc-label-maker ${create ? "oc-label-maker-create" : ""} min-w-0 flex-1 overflow-x-hidden p-3 sm:p-5 xl:p-6`}>
       <div className="mx-auto max-w-[1600px] space-y-4">
         <header className="flex flex-col justify-between gap-3 border-b border-slate-300 pb-4 lg:flex-row lg:items-end">
           <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0f6cbd]">Mail merge tool</p><h1 className="mt-1 text-2xl font-semibold text-slate-950">Avery 5160 mailing labels</h1><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Create production-sized 30-up address-label sheets from constituents or a saved Contacts Manager audience list.</p></div>
-          <div className="flex flex-wrap gap-2"><Link href="/contacts-manager/lists" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Manage audience lists</Link><button type="button" onClick={() => void downloadLabels()} disabled={working || printableSelectedRows.length === 0} className="rounded-md bg-[#0f6cbd] px-4 py-2 text-sm font-semibold text-white hover:bg-[#115ea3] disabled:cursor-not-allowed disabled:opacity-50">{working ? "Preparing..." : `Download label PDF (${printableSelectedRows.length} of ${selectedRows.length} selected)`}</button></div>
+          <div className="flex flex-wrap gap-2">{create && <Link href="/oyama-create/print-production" className="oc-button">Print batches & matching labels</Link>}<Link href={create ? "/oyama-create/audiences/manage" : "/contacts-manager/lists"} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Manage audience lists</Link><button type="button" onClick={() => void downloadLabels()} disabled={working || printableSelectedRows.length === 0} className="rounded-md bg-[#0f6cbd] px-4 py-2 text-sm font-semibold text-white hover:bg-[#115ea3] disabled:cursor-not-allowed disabled:opacity-50">{working ? "Preparing..." : `Download label PDF (${printableSelectedRows.length} of ${selectedRows.length} selected)`}</button></div>
         </header>
 
         {error ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
@@ -235,12 +267,15 @@ export default function MailMergeLabelsWorkspace() {
           </div>
 
           <aside className="space-y-3">
-            <div className="rounded-lg border border-slate-300 bg-white p-4 shadow-sm"><h2 className="font-semibold text-slate-950">2. Sheet setup</h2><label className="mt-3 block text-xs font-semibold text-slate-700">First label position<select value={startPosition} onChange={(event) => setStartPosition(Number(event.target.value))} className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal">{Array.from({ length: 30 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}{index === 0 ? " — new sheet" : ` — skip ${index}`}</option>)}</select></label><label className="mt-3 flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={showGuides} onChange={(event) => setShowGuides(event.target.checked)} className="mt-0.5" /><span><span className="font-semibold">Print alignment guides</span><span className="block text-xs text-slate-500">Use plain paper for a test print. Turn guides off before printing on labels.</span></span></label><div className="mt-3 grid grid-cols-3 gap-2 text-center"><div className="rounded bg-slate-50 px-2 py-2"><p className="text-xs text-slate-500">Labels</p><p className="font-semibold tabular-nums">{printableSelectedRows.length}</p></div><div className="rounded bg-slate-50 px-2 py-2"><p className="text-xs text-slate-500">Sheets</p><p className="font-semibold tabular-nums">{pageCount}</p></div><div className="rounded bg-slate-50 px-2 py-2"><p className="text-xs text-slate-500">Start</p><p className="font-semibold tabular-nums">{startPosition}</p></div></div></div>
+            <div className="rounded-lg border border-slate-300 bg-white p-4 shadow-sm"><h2 id="label-sheet-settings" className="font-semibold text-slate-950">2. Sheet setup</h2><button type="button" onClick={saveSheetPreferences} className="oc-label-save">Save sheet defaults</button><label className="mt-3 block text-xs font-semibold text-slate-700">First label position<select value={startPosition} onChange={(event) => setStartPosition(Number(event.target.value))} className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal">{Array.from({ length: 30 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}{index === 0 ? " — new sheet" : ` — skip ${index}`}</option>)}</select></label><label className="mt-3 flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={showGuides} onChange={(event) => setShowGuides(event.target.checked)} className="mt-0.5" /><span><span className="font-semibold">Print alignment guides</span><span className="block text-xs text-slate-500">Use plain paper for a test print. Turn guides off before printing on labels.</span></span></label><div className="mt-3 grid grid-cols-3 gap-2 text-center"><div className="rounded bg-slate-50 px-2 py-2"><p className="text-xs text-slate-500">Labels</p><p className="font-semibold tabular-nums">{printableSelectedRows.length}</p></div><div className="rounded bg-slate-50 px-2 py-2"><p className="text-xs text-slate-500">Sheets</p><p className="font-semibold tabular-nums">{pageCount}</p></div><div className="rounded bg-slate-50 px-2 py-2"><p className="text-xs text-slate-500">Start</p><p className="font-semibold tabular-nums">{startPosition}</p></div></div></div>
 
-            <div className="rounded-lg border border-slate-300 bg-white p-4 shadow-sm"><div className="flex items-center justify-between"><div><h2 className="font-semibold text-slate-950">First-sheet preview</h2><p className="text-xs text-slate-500">Avery 5160 · US Letter · 30 labels</p></div><span className="text-xs font-semibold text-slate-600">Not to print</span></div><div className="mx-auto mt-3 grid aspect-[8.5/11] w-full max-w-[410px] grid-cols-3 grid-rows-10 gap-x-[1.47%] bg-white px-[2.2%] py-[4.55%] shadow-[0_1px_8px_rgba(15,23,42,0.18)]">{previewSlots.map((row, index) => <div key={index} className={`min-h-0 overflow-hidden px-[5%] py-[3%] text-[5px] leading-[1.18] text-slate-700 ${showGuides ? "border border-slate-300" : ""}`}>{row ? <><p className="truncate font-bold">{displayName(row)}</p>{formattedAddress(row).map((line) => <p key={line} className="truncate">{line}</p>)}</> : null}</div>)}</div><p className="mt-3 text-xs leading-5 text-slate-500">Print the downloaded PDF at <strong>Actual size / 100%</strong>. Disable Fit, Shrink, or Scale-to-page options.</p></div>
+            <div className="oc-label-proof">
+              <div className="oc-label-proof-heading"><h2>Exact sheet proof</h2><button type="button" disabled={working || !printableSelectedRows.length} onClick={() => void downloadLabels(false)}>{working ? "Preparing PDF…" : "Preview label PDF"}</button></div>
+              <LetterProofViewer url={proof?.url || null} filename={proof?.name || "mailing-labels.pdf"} stale={!!proof && proof.fingerprint !== fingerprint} busy={working} label="Avery 5160 · US Letter · 30 labels per sheet. Print at Actual size / 100%."/>
+            </div>
           </aside>
         </section>
       </div>
-    </main>
+    </section>
   );
 }

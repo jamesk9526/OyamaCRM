@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import { openPdfPrintView } from "../pdf-print";
 import "pdfjs-dist/web/pdf_viewer.css";
+import "./pdf-proof.css";
 
 let pdfJsPromise: Promise<typeof import("pdfjs-dist")> | undefined;
 function loadPdfJs() {
@@ -43,14 +44,14 @@ function PdfPage({ document, page, width, text = false }: { document: PDFDocumen
   return <div className="relative mx-auto w-fit bg-white shadow-sm"><canvas ref={canvas} role="img" aria-label={`PDF page ${page}`} />{text ? <div ref={layer} className="textLayer" /> : null}{error ? <p role="alert" className="p-3 text-xs text-red-700">{error}</p> : null}</div>;
 }
 
-type ProofViewerProps = { url: string | null; stale: boolean; busy: boolean; label: string; pageNumber?: number; onPageChange?: (page: number) => void; compact?: boolean };
+type ProofViewerProps = { url: string | null; stale: boolean; busy: boolean; label: string; filename?: string; pageNumber?: number; onPageChange?: (page: number) => void; compact?: boolean };
 
 /** Each original PDF owns its viewer state; destroyed documents cannot leak into a new proof. */
 export default function LetterProofViewer(props: ProofViewerProps) {
   return <ProofDocument key={props.url ?? "empty-proof"} {...props} />;
 }
 
-function ProofDocument({ url, stale, busy, label, pageNumber, onPageChange, compact = false }: ProofViewerProps) {
+function ProofDocument({ url, stale, busy, label, filename = "letter-print-proof.pdf", pageNumber, onPageChange, compact = false }: ProofViewerProps) {
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null);
   const [localPage, setLocalPage] = useState(1); const [zoom, setZoom] = useState(100); const [width, setWidth] = useState(480); const [error, setError] = useState("");
   const page = Math.max(1, Math.min(document?.numPages ?? 1, pageNumber ?? localPage));
@@ -59,7 +60,7 @@ function ProofDocument({ url, stale, busy, label, pageNumber, onPageChange, comp
   const viewport = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const element = viewport.current; if (!element) return;
-    const observer = new ResizeObserver(entries => setWidth(Math.max(200, entries[0].contentRect.width - 24)));
+    const observer = new ResizeObserver(entries => setWidth(Math.max(80, entries[0].contentRect.width - 24)));
     observer.observe(element); return () => observer.disconnect();
   }, []);
   useEffect(() => {
@@ -69,7 +70,8 @@ function ProofDocument({ url, stale, busy, label, pageNumber, onPageChange, comp
       const pdfjs = await loadPdfJs();
       if (disposed) return;
       pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.mjs";
-      const task = pdfjs.getDocument({ url, isEvalSupported: false }); destroy = () => { void task.destroy(); };
+      const task = pdfjs.getDocument({ url, isEvalSupported: false, useSystemFonts: false,
+        standardFontDataUrl: "/vendor/pdfjs/standard_fonts/", cMapUrl: "/vendor/pdfjs/cmaps/", cMapPacked: true, wasmUrl: "/vendor/pdfjs/wasm/" }); destroy = () => { void task.destroy(); };
       const loaded = await task.promise;
       if (disposed) { await loaded.destroy(); return; }
       setDocument(loaded); setLocalPage(1); setError("");
@@ -81,7 +83,7 @@ function ProofDocument({ url, stale, busy, label, pageNumber, onPageChange, comp
     if (actionsDisabled || !url) return;
     const link = window.document.createElement("a");
     link.href = url;
-    link.download = "letter-print-proof.pdf";
+    link.download = filename;
     window.document.body.append(link);
     link.click();
     link.remove();
@@ -92,9 +94,9 @@ function ProofDocument({ url, stale, busy, label, pageNumber, onPageChange, comp
     setActionError(openPdfPrintView(url) ? "" : "Your browser blocked the PDF window. Allow pop-ups for this site and try again.");
   }
   const controls = "min-h-9 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold disabled:opacity-40";
-  return <section aria-label="Exact PDF proof" className="flex min-w-0 flex-col rounded-lg border border-blue-200 bg-slate-100">
+  return <section aria-label="Exact PDF proof" className="letter-pdf-viewer flex min-w-0 flex-col rounded-lg border border-blue-200 bg-slate-100">
     <div className="space-y-2 border-b border-slate-200 bg-white p-3">{!compact && <h2 className="font-semibold text-slate-900">Print proof</h2>}{label && <p className="text-xs text-slate-600">{label}</p>}
-      <p role="status" className={`text-xs font-semibold ${stale ? "text-amber-800" : "text-blue-800"}`}>{busy ? "Rendering updated proof…" : stale ? "Out of date · latest edits are not shown" : document ? `${document.numPages} PDF ${document.numPages === 1 ? "page" : "pages"} · current proof` : "No proof rendered"}</p>
+      <p role="status" className={`text-xs font-semibold ${stale ? "text-amber-800" : "text-blue-800"}`}>{busy ? "Rendering updated proof…" : stale ? "Out of date · latest edits are not shown" : document ? `${document.numPages} PDF ${document.numPages === 1 ? "page" : "pages"} · current proof` : url && !error ? "Loading PDF…" : "No proof rendered"}</p>
       <div role="group" aria-label="Original PDF actions" className="flex flex-wrap items-center gap-2">
         <button type="button" className={controls} disabled={actionsDisabled} onClick={download}>Download PDF</button>
         <button type="button" className={controls} disabled={actionsDisabled} onClick={print} title="Open the original PDF in your browser's print viewer">Print PDF</button>

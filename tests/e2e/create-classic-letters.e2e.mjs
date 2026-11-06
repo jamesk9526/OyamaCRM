@@ -7,7 +7,7 @@ import designModule from "../../server/src/oyama-create/studio/design.ts";
 import brandModule from "../../server/src/oyama-create/studio/brand.ts";
 import registry from "../../server/src/oyama-create/studio/registry.ts";
 
-const evidence = "docs/status/audit-artifacts/2026-11-06-create-classic-letters";
+const evidence = process.env.CREATE_UI_EVIDENCE || "docs/status/audit-artifacts/2026-11-06-create-classic-letters";
 await mkdir(evidence, { recursive: true });
 const base = process.env.CREATE_UI_WEB || "http://127.0.0.1:3137";
 const permissions = ["letters.view", "letters.edit", "letters.create", "letters.export_pdf", "letters.view_sensitive_merge_data", "view:constituents", "view:communications", "edit:communications"];
@@ -92,7 +92,10 @@ try {
   await page.goto(`${base}/oyama-create/campaigns/${campaign.id}`, { waitUntil: "domcontentloaded" });
   const frame = page.getByRole("region", { name: "Oyama Create unified workspace" });
   const editor = frame.getByRole("textbox", { name: "Print body", exact: true });
-  await editor.waitFor({ timeout: 90000 });
+  await editor.waitFor({ timeout: 90000 }).catch(async error => {
+    await page.screenshot({ path: `${evidence}/load-failure.png` });
+    console.log(errors, (await page.locator("body").innerText()).slice(0, 2000)); throw error;
+  });
   await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
   assert.equal(await page.getByRole("textbox", { name: "Studio letter content", exact: true }).count(), 0);
   assert.equal(await page.getByText("Create OyamaEmail Companion", { exact: true }).count(), 0);

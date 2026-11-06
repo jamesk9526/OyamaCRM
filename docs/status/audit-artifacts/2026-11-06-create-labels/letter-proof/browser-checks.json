@@ -1,0 +1,10 @@
+{
+  "synthetic": true,
+  "checks": [
+    "Classic canvas, pinned chrome, resize and overlays at four reference sizes",
+    "Server PDF page count drives Pages navigator",
+    "Undo and redo, explicit conversion, isolated digital saves, retained canvas and rollback reader"
+  ],
+  "letterWrites": 1,
+  "digitalWrites": 1
+}

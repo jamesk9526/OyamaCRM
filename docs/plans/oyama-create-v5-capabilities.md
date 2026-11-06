@@ -285,3 +285,10 @@ The classic Letters pilot supersedes the earlier Studio Letter authoring design.
 - Confirm physical printer/envelope/Avery media, actual inbox clients, and configured provider accounts.
 - Install authorized font files for any requested proprietary/custom print font, or explicitly choose an available font after reviewing layout differences.
 - Keep rollout off for production until these gates pass; retaining the legacy routes is intentional.
+## Create mailing labels
+
+| Capability | Destination | Implementation | Safeguards | Verification |
+|---|---|---|---|---|
+| Recipient selection and audience lists | Create → Labels | Shared MailMergeLabelsWorkspace | Existing constituent and PDF export permissions, tenant-scoped label endpoint, suppression review | Existing audience and eligibility unit tests, synthetic browser checks |
+| Start position and alignment guides | Labels → Sheet setup, Settings shortcut | Explicit account/device defaults | Suppression overrides excluded from saved defaults | Partial sheet across two PDF pages and preference reload |
+| Exact PDF preview, download and print | Labels → Exact sheet proof | LetterProofViewer, Avery renderer | Shared PDF bytes, stale-proof controls, bundled PDF font resources | Browser canvas rendering and downloaded byte equality at desktop and phone sizes |

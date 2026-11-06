@@ -66,6 +66,9 @@ html:has(.cv5-editor:not([hidden])){scrollbar-gutter:auto!important}.cv5-editor{
 
 .v5-command-search { white-space: nowrap; }
 .v5-command-search kbd { flex-shrink: 0; }
+.cv5-editor :is(.v5-navigator-scroll,.v5-inspector-scroll,.v5-alerts,.cs-page-rail,.v5-ribbon-panel,.classic-letter-desk,.letter-pdf-viewer>div) { scrollbar-width:thin; scrollbar-color:#b6c4cc #edf1f4; }
+.cv5-editor .letter-pdf-viewer { border-color:var(--v5-border); border-radius:5px; }
+.cv5-editor .letter-pdf-viewer button { color:var(--v5-ink); background:#fff; }
 @media (min-width: 801px) and (max-width: 1350px) {
   .cv5-vertical .cs-page-rail { padding-top: 44px; }
 }

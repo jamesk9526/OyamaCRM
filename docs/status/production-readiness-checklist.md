@@ -1654,3 +1654,10 @@ Evidence: [gateway verification](audit-artifacts/2026-11-05-oauth-gateway/verifi
 | Top-bar workspace switcher | Implemented; synthetic browser verified | Searchable desktop grid/mobile sheet, current workspace, direct mobile access, keyboard browsing/focus containment, and role-gated QuickBooks setup entry. Verified at 1440, 1024, 768, 390 and 320 pixels. |
 
 Verification: focused QuickBooks API/provider/reliability tests, web/server TypeScript, focused ESLint, Prisma schema validation and browser-only synthetic fixtures. Evidence and limitations: `docs/status/audit-artifacts/2026-11-05-quickbooks/verification.md` and `docs/status/audit-artifacts/2026-11-05-workspace-switcher/verification.md`. No live Intuit sandbox authorization or accounting write was performed. Apply the new migration and configure the Intuit redirect/deployment origin before live acceptance testing; unrelated pending migrations must be reviewed as part of deployment.
+## Create labels and PDF viewer — 2026-11-06
+
+- [x] Move label-maker entry points and sheet settings into Create while preserving recipient selection, suppression checks and approved batch order.
+- [x] Replace the approximate label sheet with the generated PDF and share its bytes with download and print.
+- [x] Package PDF.js font and decoding resources and scope viewer and label styles independently of document styling.
+- [x] Pass desktop/phone label browser checks, four-size classic Letter browser checks, twelve focused unit tests, type checks and scoped lint.
+- [ ] Confirm actual-size Avery alignment with the organization's printer and stock. Browser and renderer checks are recorded in the labels audit.
