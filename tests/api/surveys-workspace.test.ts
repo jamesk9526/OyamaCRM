@@ -21,9 +21,13 @@ const db = vi.hoisted(() => ({
   surveyInvitation: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), create: vi.fn(), findMany: vi.fn(), createMany: vi.fn() },
   surveyDistribution: { findUnique: vi.fn(), create: vi.fn() },
   surveyDeliveryJob: { createMany: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), findFirstOrThrow: vi.fn(), findFirst: vi.fn() },
+  emailSubscription: { upsert: vi.fn() }, emailUnsubscribeToken: { create: vi.fn() },
+  emailRecipientList: { findMany: vi.fn() }, emailRecipientListMember: { findMany: vi.fn() },
   constituent: { findMany: vi.fn() }, compassionClient: { findMany: vi.fn() },
   auditLog: { create: vi.fn() }, compassionAudit: { create: vi.fn() },
 }));
+const eligibility = vi.hoisted(() => vi.fn());
+vi.mock("@/server/src/services/email-compliance", async original => ({ ...await original<object>(), evaluateRecipientEligibility: eligibility }));
 const fakeSend = vi.hoisted(() => vi.fn());
 vi.mock("@/server/src/compassion/database", () => ({ prisma: db }));
 vi.mock("@/server/src/services/smtp-service", () => ({
@@ -206,6 +210,70 @@ describe("Surveys API", () => {
       .send({ contactId: "care-optout" }).expect(200);
     await request(app).post(`${api}/${id}/invitations/${invitations[1].id}/revoke`).set("Authorization", auth).send({}).expect(200);
     await request(app).post(`${carePublic}/form`).send({ token: revoked.body.path.split("#c.")[1] }).expect(404);
+  });
+
+  it("reviews full donor lists above 500, snapshots custom email and rejects changed audiences", async () => {
+    const { id, auth, api } = await createSurvey("DONOR", "ANONYMOUS");
+    const donors = Array.from({ length: 601 }, (_, i) => ({ id: `donor-${i}`, firstName: "Sample", lastName: String(i), email: `donor${i}@example.invalid` }));
+    db.constituent.findMany.mockImplementation(async ({ where }) => donors.filter(row => !where.id || where.id.in.includes(row.id)));
+    db.emailRecipientList.findMany.mockResolvedValue([{ id: "list", recipients: donors.map(row => ({ constituentId: row.id })) }]);
+    eligibility.mockImplementation(async ({ candidates }) => ({ decisions: candidates.map((row: { constituentId: string }) => ({ constituentId: row.constituentId, ineligibilityReason: null })) }));
+    const input = { listIds: ["list"], subject: "Feedback", message: "Dear {{name}}, share your feedback.", emailDesign: { heading: "Your voice matters", buttonLabel: "Take survey", signature: "Your team" } };
+    const endpoint = `${api}/${id}/distributions`;
+    const reviewed = await request(app).post(`${endpoint}/review`).set("Authorization", auth).send(input).expect(200);
+    expect(reviewed.body.ready).toBe(601);
+    expect(eligibility.mock.calls[0][0].category).toBe("SURVEY");
+    db.surveyDistribution.create.mockImplementation(({ data }) => ({ id: "batch", ...data }));
+    await request(app).post(endpoint).set("Authorization", auth).send({ ...input, reviewHash: reviewed.body.reviewHash, requestKey: randomUUID() }).expect(202);
+    expect(db.surveyInvitation.createMany.mock.calls.map(call => call[0].data.length)).toEqual([500, 101]);
+    expect(db.surveyDistribution.create.mock.calls[0][0].data.emailDesign.buttonLabel).toBe("Take survey");
+    const saved = db.surveyDistribution.create.mock.results[0].value;
+    db.surveyDistribution.findUnique.mockResolvedValue({ ...saved, revision: { surveyId: id } });
+    await request(app).post(endpoint).set("Authorization", auth).send({ ...input, emailDesign: { ...input.emailDesign, buttonLabel: "Changed" }, reviewHash: reviewed.body.reviewHash, requestKey: saved.requestKey }).expect(409);
+    db.surveyDistribution.findUnique.mockReset();
+    donors.push({ id: "added", firstName: "New", lastName: "Donor", email: "new@example.invalid" });
+    db.emailRecipientList.findMany.mockResolvedValue([{ id: "list", recipients: donors.map(row => ({ constituentId: row.id })) }]);
+    await request(app).post(endpoint).set("Authorization", auth).send({ ...input, reviewHash: reviewed.body.reviewHash, requestKey: randomUUID() }).expect(409);
+    const all = await request(app).post(`${endpoint}/review`).set("Authorization", auth).send({ ...input, listIds: [], allContacts: true }).expect(200);
+    expect(all.body.ready).toBe(602);
+    db.emailRecipientList.findMany.mockResolvedValue([{ id: "external", recipients: [{ id: "member", constituentId: null }] }]);
+    db.emailRecipientListMember.findMany.mockResolvedValue([{ id: "member", firstName: "Email", lastName: "Contact", email: "external@example.invalid" }]);
+    const external = await request(app).post(`${endpoint}/review`).set("Authorization", auth).send({ ...input, listIds: ["external"] }).expect(200);
+    expect(external.body.ready).toBe(1);
+    expect(external.body.rows[0].id).toBe("list:member");
+    expect(db.emailRecipientListMember.findMany.mock.calls[0][0].where.list.organizationId).toBe("org-one");
+    expect(fakeSend).not.toHaveBeenCalled();
+  });
+
+  it("renders the saved donor email and issues survey-only preference tokens", async () => {
+    const { id } = await createSurvey("DONOR", "ANONYMOUS");
+    const survey = rows.find(row => row.id === id)!;
+    const revision = revisions[0];
+    const recipient = { id: "donor", firstName: "Sample", lastName: "Donor", email: "donor@example.invalid" };
+    db.constituent.findMany.mockResolvedValue([recipient]);
+    eligibility.mockResolvedValue({ decisions: [{ constituentId: "donor", ineligibilityReason: null }] });
+    db.emailSubscription.upsert.mockResolvedValue({ id: "subscription" });
+    const job = { id: "job", reminder: false, invitation: { id: "invite", contactId: "donor", addressHash: digest(recipient.email), completedAt: null, revokedAt: null, expiresAt: new Date(Date.now() + 86400000), distribution: { actorId: "manager", origin: "http://localhost:3000", sender: "Fixture sender <sender@example.invalid>", subject: "Feedback", message: "Hello {{name}}", emailDesign: { heading: "We value your voice", buttonLabel: "Share feedback", signature: "The team" } }, revision: { ...revision, survey } } };
+    db.surveyDeliveryJob.findMany.mockResolvedValue([{ id: "job", organizationId: "org-one" }]);
+    db.surveyDeliveryJob.findFirstOrThrow.mockResolvedValue(job);
+    db.surveyDeliveryJob.findFirst.mockResolvedValue(job);
+    await processSurveyDeliveries("DONOR");
+    expect(fakeSend).toHaveBeenCalledTimes(1);
+    expect(fakeSend.mock.calls[0][0].html).toContain("Hello Sample Donor");
+    expect(fakeSend.mock.calls[0][0].html).toContain("Share feedback");
+    expect(fakeSend.mock.calls[0][0].html).toContain("Unsubscribe from surveys");
+    expect(db.emailUnsubscribeToken.create.mock.calls[0][0].data.category).toBe("SURVEY");
+  });
+
+  it("preserves donor logo/theme in published revisions and rejects unsafe logos", async () => {
+    const { id, auth, api } = await createSurvey("DONOR", "ANONYMOUS");
+    const appearance = { logoUrl: "https://crm.example.invalid/logo.png", logoAlt: "Official logo", accentColor: "#17485a", backgroundColor: "#edf6f3", font: "serif", buttonLabel: "Send feedback" };
+    await request(app).patch(`${api}/${id}`).set("Authorization", auth).send({ definition: { ...makeDefinition(), appearance }, editVersion: 2 }).expect(200);
+    await request(app).post(`${api}/${id}/publish`).set("Authorization", auth).send({ editVersion: 3 }).expect(200);
+    const form = await request(app).post(`${donorPublic}/form`).send({ token: revisions[1].publicKey }).expect(200);
+    expect(form.body.definition.appearance).toEqual(appearance);
+    await request(app).post(`${api}/${id}/logo`).set("Authorization", token("manager", "org-two")).send({ image: "data:image/png;base64,AAAA" }).expect(404);
+    await request(app).post(`${api}/${id}/logo`).set("Authorization", auth).send({ image: "data:image/svg+xml;base64,AAAA" }).expect(422);
   });
 
   it("requires exact invitation review and excludes clients without safe email permission", async () => {

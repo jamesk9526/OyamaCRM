@@ -1553,3 +1553,26 @@ Evidence: [gateway verification](audit-artifacts/2026-11-05-oauth-gateway/verifi
 - [ ] Deploy and reconcile FY2025/FY2026/FY2027 using the installation's MySQL records. Quoted production dollar totals and donor counts remain unverified by this code audit.
 
 [Evidence and remaining limits](audit-artifacts/2026-11-05-fiscal-calculations/verification.md).
+
+### Donor survey appearance and distribution (2026-11-05)
+
+- [x] Add donor-only logo/theme controls with published revision persistence, custom invitation composition/preview, full donor lists and a 10,000-recipient queue limit.
+- [x] Keep survey category opt-outs separate from newsletters/fundraising/global preferences, enforced by the public API and worker eligibility checks. Preserve global delivery blocks and client safe-contact controls.
+- [x] Verify 41 focused survey, preferences, image and renderer tests; repository/server types; Prisma validation/generation; isolated production web builds. Targeted lint has zero errors and two intentional native image warnings for unoptimized branding logos.
+- [x] Inspect desktop/phone before/after evidence, logo upload/save/publish, custom email preview, 601-person synthetic audience review, branded anonymous form, keyboard error focus, response export, survey-only unsubscribe/preferences and client-library regression. No page errors or horizontal overflow.
+- [ ] Apply migration and generate Prisma on staging/live, restart API/worker processes, verify the uploaded logo's public URL and send an authorized test invitation through the real provider. Local HTTP persistence and email transport were synthetic; real MySQL migration and provider acceptance remain unverified.
+
+[Verification and visual comparisons](audit-artifacts/2026-11-05-survey-branding/verification.md).
+
+
+## 2026-11-05 QuickBooks workspace and workspace switcher
+
+| Capability | Status | Evidence / deployment requirements |
+|---|---|---|
+| Dedicated QuickBooks Online workspace | Implemented; synthetic browser verified | `/quickbooks-sync` owns connection, administrator configuration, enable/disable, daily opt-in, historical confirmation, donation review, selected sends, receipt history, retries, and activity. Integrations/Plugins link to this workspace. Staff can initiate Intuit sign-in; deployment environment credentials remain preferred. |
+| Review before sending and optional daily sync | Implemented; focused tests verified | Missing/legacy sending preferences default to manual. Admin opt-in uses `qbSendingMode=daily`; schedule retains the configured hour (default 23:00) in the organization timezone. Daily runs use an optimistic claim and recheck opt-in before each write. |
+| Duplicate prevention and authorization | Implemented; mocked API/provider tests verified; live database/Intuit validation pending | Unique donation identity, stable receipt request/document IDs, receipt lookup before retry, and company-scoped database locking serialize sends and queue edits/removal. Apply `20261106010000_quickbooks_sync_mutex` before using sync. OAuth callback accepts browser redirects without a bearer token, validates/consumes stored state, reads callback company ID, and preserves the original company/cutoff on reconnect. |
+| Dashboard accounting widget and sync activity | Implemented; synthetic browser verified | Tenant-scoped pending/failed counts, last successful receipt, sending mode, schedule/timezone, and a workspace link. Activity includes actor, timestamp, action and queue reference. Credentials/tokens are not returned in summaries or activity. |
+| Top-bar workspace switcher | Implemented; synthetic browser verified | Searchable desktop grid/mobile sheet, current workspace, direct mobile access, keyboard browsing/focus containment, and role-gated QuickBooks setup entry. Verified at 1440, 1024, 768, 390 and 320 pixels. |
+
+Verification: focused QuickBooks API/provider/reliability tests, web/server TypeScript, focused ESLint, Prisma schema validation and browser-only synthetic fixtures. Evidence and limitations: `docs/status/audit-artifacts/2026-11-05-quickbooks/verification.md` and `docs/status/audit-artifacts/2026-11-05-workspace-switcher/verification.md`. No live Intuit sandbox authorization or accounting write was performed. Apply the new migration and configure the Intuit redirect/deployment origin before live acceptance testing; unrelated pending migrations must be reviewed as part of deployment.

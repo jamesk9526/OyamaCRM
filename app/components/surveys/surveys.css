@@ -96,3 +96,16 @@
   .survey-ui .survey-btn, .survey-answer { min-height: 2.75rem; }
   .survey-field :is(input,textarea,select), .survey-control { font-size: 1rem; }
 }
+
+/* Brand styles are scoped to the public form and its preview. */
+.survey-themed { padding: clamp(.75rem,3vw,1.5rem); border-radius: .9rem; }
+.survey-logo { display:block; max-width: min(100%,220px); max-height:96px; width:auto; height:auto; object-fit:contain; }
+.survey-themed .survey-primary, .survey-themed .survey-primary:hover:not(:disabled) { background:var(--survey-blue); color:var(--survey-on-accent); border-color:var(--survey-blue); }
+.survey-themed .survey-eyebrow { color:var(--survey-ink); }
+.survey-email-preview { overflow-wrap:anywhere; border:1px solid var(--survey-line); border-radius:.7rem; overflow:hidden; }
+.survey-email-preview img { max-width:100%; }
+.survey-field input[type="color"] { padding:.2rem; min-height:2.75rem; }
+
+.survey-themed :is(input[type="checkbox"],input[type="radio"],progress) { accent-color:var(--survey-controls); }
+.survey-themed :is(button,a,input,textarea,select):focus-visible { outline-color:var(--survey-controls); }
+.survey-themed .survey-primary { border-color:#54708b; }

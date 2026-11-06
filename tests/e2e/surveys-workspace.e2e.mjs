@@ -19,6 +19,7 @@ let publication;
 let batch;
 let answer;
 let careOnly = false;
+let logoBytes;
 const browser = await chromium.launch({ headless: true, ...(process.env.SURVEYS_BROWSER_CHANNEL ? { channel: process.env.SURVEYS_BROWSER_CHANNEL } : {}) });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, timezoneId: timezone });
 const page = await context.newPage();
@@ -27,11 +28,17 @@ const checks = [];
 page.on("pageerror", error => errors.push(error.message));
 await mkdir(evidence, { recursive: true });
 
+await context.route("**/synthetic-survey-logo.png", route => route.fulfill({ contentType: "image/png", body: logoBytes }));
 await context.route("**/api/**", async route => {
   const req = route.request();
   const url = new URL(req.url());
   const path = url.pathname;
   const send = (json, status = 200) => route.fulfill({ status, json });
+  if (path === "/api/email/preferences/synthetic-survey-token") {
+    if (req.method() === "POST") { const body = req.postDataJSON(); assert.equal(body.globalStatus, undefined); assert.deepEqual(body.categoryPreferences, [{ category: "SURVEY", status: "UNSUBSCRIBED" }]); return send({ success: true }); }
+    return send({ organizationName: "Sample organization", emailMasked: "do***@e***.invalid", email: contact.email, globalStatus: "SUBSCRIBED", categoryHint: "SURVEY", categoryPreferences: [{ category: "SURVEY", status: "SUBSCRIBED" }] });
+  }
+  if (path === "/api/email/unsubscribe/synthetic-survey-token") { assert.equal(req.postDataJSON().scope, "category"); return send({ success: true, unsubscribedScope: "category" }); }
   if (path === "/api/auth/refresh") return send({ data: { accessToken: "synthetic-test-token" } });
   if (path === "/api/auth/me") return send({ data: { id: "synthetic-author", organizationId: "synthetic-org", firstName: "Taylor",
     lastName: "Reed", email: "taylor@example.invalid", role: careOnly ? "compassion_user" : "admin" } });
@@ -64,15 +71,19 @@ await context.route("**/api/**", async route => {
       revisions: [{ id: "synthetic-revision", number: 1, path: formPath, createdAt: card.updatedAt }] });
     return send({ revision: 1 });
   }
+  if (path.endsWith("/branding")) return send({ logoUrl: "/synthetic-survey-logo.png" });
+  if (path.endsWith("/logo")) { assert.match(req.postDataJSON().image, /^data:image\/png;base64,/); return send({ logoUrl: "/synthetic-survey-logo.png" }, 201); }
   if (path.endsWith("/contacts")) return send([contact]);
-  if (path.endsWith("/lists")) return send([]);
+  if (path.endsWith("/lists")) return send([{ id: "full-list", name: "All supporters", _count: { recipients: 601 } }]);
   if (path.endsWith("/distributions/review")) {
     const input = req.postDataJSON();
     assert.deepEqual(input.contactIds, [contact.id]);
     assert.equal(input.reminderDays, 7);
-    return send({ rows: [{ ...contact, excluded: null }], ready: 1, missing: 0, unlinkedEntries: 0,
+    assert.equal(input.allContacts, true); assert.deepEqual(input.listIds, ["full-list"]);
+    assert.equal(input.emailDesign.buttonLabel, "Share your voice");
+    return send({ rows: [{ ...contact, excluded: null }], ready: 601, missing: 0, unlinkedEntries: 0,
       sender: "Sample organization <team@example.invalid>", subject: input.subject, message: input.message,
-      scheduledAt: null, closesAt: null, reminderDays: 7, revision: { number: 1 }, reviewHash: "synthetic-review" });
+      scheduledAt: null, closesAt: null, reminderDays: 7, emailDesign: input.emailDesign, revision: { number: 1, definition: publication }, reviewHash: "synthetic-review" });
   }
   if (path.endsWith("/distributions")) {
     if (req.method() === "POST") {
@@ -80,7 +91,7 @@ await context.route("**/api/**", async route => {
       assert.equal(input.reviewHash, "synthetic-review");
       assert.match(input.requestKey, /^[a-f0-9-]{36}$/);
       batch = { id: "synthetic-batch", revision: 1, subject: input.subject, sendAt: card.updatedAt,
-        recipients: 1, reminderDays: 7, counts: { QUEUED: 2 } };
+        recipients: 601, reminderDays: 7, counts: { QUEUED: 1202 } };
       return send({ id: batch.id }, 202);
     }
     return send(batch ? [batch] : []);
@@ -135,6 +146,14 @@ try {
   await page.getByRole("button", { name: "Donor experience" }).click();
   await page.getByRole("button", { name: "Start building" }).click();
   await page.getByRole("heading", { name: "Sections and questions" }).waitFor();
+  logoBytes = Buffer.from(await page.evaluate(() => { const canvas = document.createElement("canvas"); canvas.width = 360; canvas.height = 90; const ctx = canvas.getContext("2d"); ctx.fillStyle = "#17485a"; ctx.fillRect(0,0,360,90); ctx.fillStyle = "#fff"; ctx.font = "bold 23px Arial"; ctx.fillText("SAMPLE ORGANIZATION", 18, 54); return canvas.toDataURL("image/png").split(",")[1]; }), "base64");
+  await page.getByLabel("Upload survey logo").setInputFiles({ name: "synthetic-logo.png", mimeType: "image/png", buffer: logoBytes });
+  await page.getByRole("button", { name: "Remove logo" }).waitFor();
+  await page.getByLabel("Logo description").fill("Sample organization logo");
+  await page.getByLabel("Accent color").fill("#17485a");
+  await page.getByLabel("Page background").fill("#edf6f3");
+  await page.getByLabel("Survey font").selectOption("serif");
+  await page.getByLabel("Submit button text").fill("Send my feedback");
   await page.getByRole("button", { name: "Section", exact: true }).click();
   await page.getByRole("button", { name: "Add question" }).last().click();
   await page.getByRole("textbox", { name: "Question text" }).fill("Would you recommend our organization?");
@@ -167,13 +186,23 @@ try {
   await page.getByRole("heading", { name: "Shared survey link" }).waitFor();
   assert.equal(await page.getByLabel("Survey link").inputValue(), base + formPath);
   await page.getByLabel(/Sample donor/).check();
+  await page.getByLabel("All open donor records with eligible email").check();
+  await page.getByLabel(/All supporters/).check();
+  await page.getByLabel("Email heading").fill("Your voice matters");
+  await page.getByRole("textbox", { name: /^Message/ }).fill("Dear {{name}},\nPlease share your feedback using {{survey_link}}.");
+  await page.getByLabel("Survey button text").fill("Share your voice");
+  await page.getByText("Preview invitation email", { exact: true }).click();
+  await image("invitation-1440");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await image("invitation-390");
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByLabel("Send one reminder").check();
   await page.getByRole("button", { name: "Review invitations" }).click();
   await page.getByText("After 7 days · all original recipients", { exact: false }).waitFor();
   await image("review-1440");
   await page.getByRole("button", { name: "Confirm and queue" }).click();
   await page.getByText("Distribution queued.", { exact: false }).waitFor();
-  await page.getByText("2 queued", { exact: true }).waitFor();
+  await page.getByText("1202 queued", { exact: true }).waitFor();
   checks.push("Publication review, link generation, anonymous reminder policy, exact recipient confirmation and synthetic delivery history");
 
   const publicPage = await context.newPage({ viewport: { width: 390, height: 844 } });
@@ -182,14 +211,32 @@ try {
   await publicPage.goto(base + formPath);
   await publicPage.getByRole("heading", { name: "Donor experience", exact: true }).waitFor();
   assert.equal(await publicPage.getByRole("navigation").count(), 0);
+  await publicPage.getByRole("img", { name: "Sample organization logo" }).waitFor();
+  assert.match(await publicPage.locator(".survey-themed").getAttribute("style"), /#17485a/);
   await publicPage.getByRole("radio", { name: "2", exact: true }).check();
   await publicPage.getByLabel("What would help you feel more connected?").fill("Synthetic follow-up feedback");
   await image("respondent-390", publicPage);
   await publicPage.getByRole("button", { name: "Next", exact: true }).click();
   await publicPage.getByRole("radio", { name: "Yes", exact: true }).check();
-  await publicPage.getByRole("button", { name: "Submit response" }).click();
+  await publicPage.getByRole("button", { name: "Send my feedback" }).click();
   await publicPage.getByRole("heading", { name: "Response complete" }).waitFor();
   await publicPage.close();
+  const prefPage = await context.newPage();
+  await prefPage.setViewportSize({ width: 390, height: 844 });
+  await prefPage.goto(base + "/unsubscribe/synthetic-survey-token");
+  await prefPage.getByText("Stop survey invitations only.", { exact: false }).waitFor();
+  await image("survey-unsubscribe-390", prefPage);
+  await prefPage.getByRole("button", { name: "Unsubscribe Me" }).click();
+  await prefPage.getByText("Your other email preferences have not changed.", { exact: false }).waitFor();
+  await prefPage.goto(base + "/preferences/synthetic-survey-token");
+  await prefPage.getByText("These controls apply only to survey invitations.", { exact: false }).waitFor();
+  assert.equal(await prefPage.getByLabel("Global subscription status").count(), 0);
+  await prefPage.getByRole("checkbox", { name: "SURVEY" }).uncheck();
+  await image("survey-preferences-390", prefPage);
+  await prefPage.getByRole("button", { name: /Save/ }).click();
+  await prefPage.getByText("Your communication preferences were updated.").waitFor();
+  await prefPage.close();
+  checks.push("Survey-only public unsubscribe and preferences expose no global opt-out controls; POST payloads change only SURVEY");
   await page.getByRole("button", { name: "4. Responses" }).click();
   await page.getByRole("heading", { name: "Question summaries" }).waitFor();
   assert.equal(await page.getByText("Invitation completion", { exact: false }).count(), 0);

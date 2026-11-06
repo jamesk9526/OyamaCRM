@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, ClipboardList } from "lucide-react";
-import { evaluateAnswers, type Answer, type Answers, type Definition, type Question } from "@/server/src/surveys/definition";
+import { accentText, defaultAppearance, evaluateAnswers, type Answer, type Answers, type Definition, type Question } from "@/server/src/surveys/definition";
 import { message, type Identity } from "./client";
 
 function QuestionField({ question, value, set, error }: {
@@ -112,12 +112,14 @@ export default function SurveyForm({ definition, identity, organization, preview
     finally { setBusy(false); }
   }
 
-  return <div className="survey-respondent survey-stack">
+  const theme = { ...defaultAppearance, ...definition.appearance };
+  return <div className={`survey-respondent survey-stack${definition.appearance ? " survey-themed" : ""}`} style={definition.appearance ? { "--survey-blue": theme.accentColor, "--survey-on-accent": accentText(theme.accentColor), "--survey-controls": accentText(theme.accentColor) === "#000000" ? "#17485a" : theme.accentColor, background: theme.backgroundColor, fontFamily: theme.font === "serif" ? "Georgia,serif" : "Arial,sans-serif" } as CSSProperties : undefined}>
     <div className="survey-row"><span className="survey-feature-icon"><ClipboardList size={21} aria-hidden /></span>
       <div className="survey-stack-tight"><p className="survey-eyebrow">{preview ? "Respondent preview" : organization ?? "Survey"}</p>
         <p className="survey-caption">{preview ? "Preview answers stay in this tab." : "Your feedback"}</p></div>
     </div>
     <article className="survey-card survey-stack">
+      {theme.logoUrl && <img className="survey-logo" src={theme.logoUrl} alt={theme.logoAlt} />}
       <div className="survey-stack-tight">
         <h1>{definition.title}</h1>
         {!done && definition.introduction && <p style={{ whiteSpace: "pre-wrap" }}>{definition.introduction}</p>}
@@ -150,7 +152,7 @@ export default function SurveyForm({ definition, identity, organization, preview
         {error && <p role="alert" className="survey-rule survey-error">{error}</p>}
         <div className="survey-heading">
           {index > 0 && <button type="button" className="survey-btn" onClick={() => move(sections[index - 1].id)} disabled={busy}><ArrowLeft size={16} /> Back</button>}
-          <button className="survey-btn survey-primary" disabled={busy}>{busy ? "Submitting…" : last ? (preview ? "Submit preview" : "Submit response") : "Next"} <ArrowRight size={16} /></button>
+          <button className="survey-btn survey-primary" disabled={busy}>{busy ? "Submitting…" : last ? (preview ? "Submit preview" : theme.buttonLabel) : "Next"} <ArrowRight size={16} /></button>
         </div>
       </form> : <p className="survey-muted">Add a visible question to preview this survey.</p>}
     </article>

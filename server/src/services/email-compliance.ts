@@ -143,9 +143,10 @@ export function hashPublicEmailToken(token: string): string {
 export async function evaluateRecipientEligibility(params: {
   organizationId: string;
   purpose: EmailPurpose;
+  category?: "SURVEY";
   candidates: EmailRecipientCandidate[];
 }): Promise<EmailEligibilityResult> {
-  const category = categoryForPurpose(params.purpose);
+  const category = params.category ?? categoryForPurpose(params.purpose);
   const normalizedRows = params.candidates.map((row) => ({
     ...row,
     email: row.email.trim().toLowerCase(),
@@ -261,7 +262,7 @@ export async function evaluateRecipientEligibility(params: {
     if (!suppressionByEmail.has(email)) suppressionByEmail.set(email, row.reason);
   }
 
-  const preferenceRequired = requiresPreferenceCompliance(params.purpose);
+  const preferenceRequired = params.category === "SURVEY" || requiresPreferenceCompliance(params.purpose);
   const subscriptionIds = Array.from(new Set(
     Array.from(subscriptionByEmail.values()).map((value) => value.id),
   ));

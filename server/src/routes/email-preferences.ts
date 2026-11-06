@@ -15,6 +15,7 @@ import { requirePermission } from "../middleware/requirePermission.js";
 const router = Router();
 
 const ALL_EMAIL_CATEGORIES: EmailCategory[] = [
+  "SURVEY",
   "NEWSLETTER",
   "FUNDRAISING_APPEAL",
   "EVENT_INVITATION",
@@ -135,7 +136,7 @@ router.get("/preferences/:token", async (req, res) => {
       email: tokenRow.subscription.email,
       globalStatus: tokenRow.subscription.globalStatus,
       categoryHint: tokenRow.category,
-      categoryPreferences: buildCategoryPreferences(tokenRow.subscription.preferences),
+      categoryPreferences: buildCategoryPreferences(tokenRow.subscription.preferences).filter(row => tokenRow.category !== "SURVEY" || row.category === "SURVEY"),
       expiresAt: tokenRow.expiresAt,
       usedAt: tokenRow.usedAt,
     });
@@ -160,6 +161,9 @@ router.post("/preferences/:token", async (req, res) => {
       return;
     }
 
+    if (tokenRow.category === "SURVEY" && (req.body?.globalStatus !== undefined || (Array.isArray(req.body?.categoryPreferences) && req.body.categoryPreferences.some((row: { category?: unknown }) => row?.category !== "SURVEY")))) {
+      res.status(422).json({ error: { message: "This link changes survey preferences only." } }); return;
+    }
     const requestedStatus = parseGlobalStatus(req.body?.globalStatus);
     const requestedPreferences = Array.isArray(req.body?.categoryPreferences)
       ? req.body.categoryPreferences as Array<{ category?: unknown; status?: unknown }>
@@ -338,7 +342,7 @@ router.post("/unsubscribe/:token", async (req, res) => {
     }
 
     const scopeRaw = typeof req.body?.scope === "string" ? req.body.scope.trim().toLowerCase() : "all";
-    const scope = scopeRaw === "category" ? "category" : "all";
+    const scope = tokenRow.category === "SURVEY" || scopeRaw === "category" ? "category" : "all";
 
     await prisma.$transaction(async (tx) => {
       if (scope === "category" && tokenRow.category) {
@@ -360,11 +364,8 @@ router.post("/unsubscribe/:token", async (req, res) => {
           },
         });
 
-        await tx.emailSubscription.update({
-          where: { id: tokenRow.subscriptionId },
-          data: {
-            globalStatus: "PARTIALLY_SUBSCRIBED",
-          },
+        if (tokenRow.category !== "SURVEY") await tx.emailSubscription.update({
+          where: { id: tokenRow.subscriptionId }, data: { globalStatus: "PARTIALLY_SUBSCRIBED" },
         });
 
         await tx.emailConsentEvent.create({

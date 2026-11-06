@@ -621,7 +621,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 </svg>
               </button>
               {/* ── TopBar Brand ── */}
-              <Link href={homeHref} className={`flex min-w-0 shrink items-center rounded-xl px-1.5 py-1 transition-opacity hover:opacity-90 max-[380px]:px-1 ${isDonorEnterpriseChrome ? "text-white" : ""}`} aria-label="Go to OyamaCRM v2.0 home">
+              <Link href={homeHref} className={`flex min-w-0 shrink items-center rounded-xl px-1.5 py-1 transition-opacity hover:opacity-90 max-[380px]:px-1 ${showModuleSwitcher ? "max-[420px]:hidden" : ""} ${isDonorEnterpriseChrome ? "text-white" : ""}`} aria-label="Go to OyamaCRM v2.0 home">
                 {isDonorEnterpriseChrome ? (
                   <><Image src={OYAMA_PRODUCT_ICON} alt="" width={26} height={26} className="mr-1 hidden min-[360px]:block"/><span className="inline-flex items-baseline gap-1 whitespace-nowrap text-sm font-bold tracking-[-0.035em] text-white max-[380px]:text-xs">OyamaCRM <span className="text-[9px] font-bold tracking-wide text-emerald-200">v2.0</span></span></>
                 ) : (
@@ -639,7 +639,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
 
             {/* ── Module switcher (left anchor) ── */}
             {showModuleSwitcher && (
-              <div className={`${isDonorEnterpriseChrome ? "hidden min-[640px]:flex" : "hidden min-[420px]:flex"} min-w-0 items-center gap-1.5 sm:gap-2`}>
+              <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
                 <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled />
               </div>
             )}
@@ -931,9 +931,6 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 </button>
               </div>
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2.5">
-                {isDonorEnterpriseChrome && showModuleSwitcher ? (
-                  <div className="pb-2 sm:hidden"><ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled /></div>
-                ) : null}
                 <Link href="/donor-profile" onClick={() => setMobileQuickOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-200 px-3 text-sm text-slate-700"><DonorResearchIcon />Donor research</Link>
                 <DonorQuickAddButton />
                 {isStewardSignalsWorkspace && (

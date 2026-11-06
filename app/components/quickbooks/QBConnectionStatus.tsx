@@ -13,6 +13,7 @@ interface Props {
   onDisconnect: () => void;
   /** Whether a connection/disconnection action is in progress */
   loading?: boolean;
+  canDisconnect?: boolean;
 }
 
 /**
@@ -25,7 +26,7 @@ interface Props {
  * @param onDisconnect - Callback when user wants to disconnect
  * @param loading      - Disables buttons during async operations
  */
-export default function QBConnectionStatus({ onConnect, onDisconnect, loading = false }: Props) {
+export default function QBConnectionStatus({ onConnect, onDisconnect, loading = false, canDisconnect = true }: Props) {
   const { qbConfigured, qbEnabled, qbConnected, qbRealmId, qbEnvironment, qbRuntimeSource } = usePlugins();
 
   if (!qbConfigured) {
@@ -41,20 +42,18 @@ export default function QBConnectionStatus({ onConnect, onDisconnect, loading = 
         <div>
           <p className="text-sm font-medium text-gray-700">QuickBooks not configured</p>
           <p className="text-xs text-gray-500 mt-0.5">
-            Add OAuth runtime credentials in Plugins (recommended) or set
-            <code className="font-mono"> QB_CLIENT_ID </code> and
-            <code className="font-mono"> QB_CLIENT_SECRET </code> server environment variables.
+            Ask your administrator to configure the Intuit connection in this workspace or on the server.
           </p>
         </div>
       </div>
     );
   }
 
-  if (!qbEnabled) {
+  if (!qbEnabled && qbConnected) {
     return (
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 flex items-center gap-3">
         <span className="w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0" />
-        <p className="text-sm text-gray-600">QuickBooks plugin is <strong>disabled</strong>. Enable it above to allow syncing donations.</p>
+        <p className="text-sm text-gray-600">QuickBooks plugin is <strong>disabled</strong>. An administrator can enable it in workspace settings.</p>
       </div>
     );
   }
@@ -97,7 +96,7 @@ export default function QBConnectionStatus({ onConnect, onDisconnect, loading = 
       </div>
       <button
         onClick={onDisconnect}
-        disabled={loading}
+        disabled={loading || !canDisconnect}
         className="px-4 py-1.5 border border-green-300 text-green-700 text-sm font-medium rounded-lg hover:bg-green-100 disabled:opacity-60 transition-colors whitespace-nowrap"
       >
         Disconnect

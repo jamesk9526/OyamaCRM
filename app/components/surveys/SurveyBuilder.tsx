@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowDown, ArrowUp, GitBranch, Plus, Settings2, Trash2 } from "lucide-react";
 import { allowedOperators, questionTypes, type Definition, type Question, type QuestionType, type Rule } from "@/server/src/surveys/definition";
 import { type Identity } from "./client";
+import SurveyAppearance from "./SurveyAppearance";
 import SurveyDialog from "./SurveyDialog";
 
 const operatorLabels = { is: "is", contains: "includes", atMost: "is at most", atLeast: "is at least" } as const;
@@ -77,9 +78,9 @@ function QuestionEditor({ question, earlier, onSave, onClose }: {
   </SurveyDialog>;
 }
 
-export default function SurveyBuilder({ definition, setDefinition, identity, setIdentity, identityLocked, editable }: {
+export default function SurveyBuilder({ definition, setDefinition, identity, setIdentity, identityLocked, editable, organizationLogo, uploadLogo }: {
   definition: Definition; setDefinition: (value: Definition) => void; identity: Identity; setIdentity: (value: Identity) => void;
-  identityLocked: boolean; editable: boolean;
+  identityLocked: boolean; editable: boolean; organizationLogo?: () => Promise<string>; uploadLogo?: (image: string) => Promise<string>;
 }) {
   const [editor, setEditor] = useState<{ sectionId: string; question: Question; isNew: boolean } | null>(null);
   const allQuestions = definition.sections.flatMap(section => section.questions);
@@ -91,7 +92,7 @@ export default function SurveyBuilder({ definition, setDefinition, identity, set
   const earlier = section && editor ? [...precedingSections.flatMap(item => item.questions),
     ...section.questions.slice(0, editor.isNew ? section.questions.length : section.questions.findIndex(item => item.id === editor.question.id))] : [];
   return <div className="survey-grid">
-    <section className="survey-card survey-stack">
+    <div className="survey-stack"><section className="survey-card survey-stack">
       <h2>Survey setup</h2>
       <label className="survey-field">Title<input value={definition.title} maxLength={160} readOnly={!editable} onChange={event => change({ title: event.currentTarget.value })} /></label>
       <label className="survey-field">Introduction<textarea value={definition.introduction} maxLength={2000} readOnly={!editable}
@@ -103,6 +104,7 @@ export default function SurveyBuilder({ definition, setDefinition, identity, set
         <option value="LINKED">CRM-linked</option></select></label>
       <p className="survey-caption">{identityLocked ? "Identity is fixed after the first publication." : "Choose the identity policy before publishing."}</p>
     </section>
+    {organizationLogo && uploadLogo && <SurveyAppearance value={definition.appearance} onChange={appearance => change({ appearance })} disabled={!editable} organizationLogo={organizationLogo} uploadLogo={uploadLogo} />}</div>
     <section className="survey-card survey-stack">
       <div className="survey-heading"><div className="survey-stack-tight"><h2>Sections and questions</h2>
         <p className="survey-caption">Each section is a page in the respondent form.</p></div>

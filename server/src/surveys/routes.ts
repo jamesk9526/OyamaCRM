@@ -1,3 +1,5 @@
+import { loadOrganizationBrandingContext } from "../services/organization-branding.js";
+import { storeStudioImage } from "../oyama-create/studio/asset-storage.js";
 import { Router, type NextFunction, type Request, type Response } from "express";
 import type { Survey, SurveyAudience, SurveyIdentity } from "@prisma/client";
 import { prisma as db } from "../compassion/database.js";
@@ -54,6 +56,26 @@ function overview(survey: Survey, responseCount?: number) {
     status: statusOf(survey), published: survey.published, closesAt: survey.closesAt, updatedAt: survey.updatedAt, responseCount,
   };
 }
+
+surveys.post("/:id/logo", async (req, res) => {
+  const survey = await authorizedSurvey(req, "edit");
+  if (survey.audience !== "DONOR") notFound();
+  const data = boundedText(req.body?.image, "Logo image", 280000, true);
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,([a-z\d+/=]+)$/i.exec(data);
+  if (!match) invalid("Upload a PNG, JPEG or WebP image.");
+  const bytes = Buffer.from(match[2], "base64");
+  if (!bytes.length || bytes.length > 200000) invalid("Choose a logo up to 200 KB.");
+  const asset = await storeStudioImage({ org: survey.organizationId, actor: actor(req), name: "Survey logo", bytes, mimeType: match[1] });
+  await auditSurvey(req, "DONOR", "SURVEY_LOGO_UPLOADED", survey.id);
+  res.status(201).json({ logoUrl: asset.url });
+});
+
+surveys.get("/:id/branding", async (req, res) => {
+  const survey = await authorizedSurvey(req, "edit");
+  if (survey.audience !== "DONOR") notFound();
+  const branding = await loadOrganizationBrandingContext(survey.organizationId);
+  res.json({ logoUrl: branding.logoUrl || branding.logoSquareUrl || "" });
+});
 
 surveys.get("/access", async (req, res) => { res.json(await accessFor(req)); });
 
@@ -124,6 +146,7 @@ surveys.patch("/:id", async (req, res) => {
   const survey = await authorizedSurvey(req, "edit");
   const body = record(req.body);
   const draft = parseDefinition(body.definition);
+  if (survey.audience === "CLIENT" && draft.appearance) invalid("Survey appearance customization is currently donor-only.");
   const identity = body.identity === undefined ? survey.identity : identityOf(body.identity);
   if (!Number.isSafeInteger(body.editVersion)) invalid("A draft version is required.");
   const saved = await surveyTransaction(survey.organizationId, survey.id, async (tx, current) => {

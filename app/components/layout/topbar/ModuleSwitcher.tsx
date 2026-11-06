@@ -1,220 +1,110 @@
 "use client";
+
 import { useDialogFocus } from "@/app/components/ui/useDialogFocus";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useId, useCallback, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, usePathname } from "next/navigation";
+import { ArrowUpRight, Check, ChevronDown, ClipboardList, HeartHandshake, LayoutGrid, Search, Users, CalendarDays, FileText, Calculator, X } from "lucide-react";
 import type { TopBarModuleKey } from "@/app/lib/navigation-boundaries";
 import type { WorkspaceSettings } from "@/app/lib/workspace-settings";
-import { resolveModuleSwitcherTone } from "./theme-tokens";
-import { ClipboardList } from "lucide-react";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { surveyWorkspaceAccess } from "@/app/components/surveys/client";
-/** Workspace switcher icon set using inline SVG (no custom image assets). */
-function WorkspaceSwitcherIcon({ moduleKey, className = "w-4 h-4" }: { moduleKey: TopBarModuleKey; className?: string }) {
-  if (moduleKey === "surveys") return <ClipboardList aria-hidden="true" className={className} />;
-  if (moduleKey === "letters") {
-    return (
-      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6 3h10l4 4v14H6V3z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 11h6M9 15h6M16 3v5h4" />
-      </svg>
-    );
-  }
-  if (moduleKey === "events") {
-    return (
-      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="4.5" y="5.5" width="15" height="14" rx="2" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8 3.5v4M16 3.5v4M4.5 10.5h15" />
-      </svg>
-    );
-  }
-  if (moduleKey === "watchdog") {
-    return (
-      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3.5l7 2.8v5.6c0 4.2-3 7.7-7 8.8-4-1.1-7-4.6-7-8.8V6.3L12 3.5z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 12.5l1.7 1.7 3.3-3.4" />
-      </svg>
-    );
-  }
-  if (moduleKey === "webmaster") {
-    return (
-      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 8.5h17M8.5 4.5v4" />
-      </svg>
-    );
-  }
-  if (moduleKey === "oshareview") {
-    return (
-      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 18.5h14" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 15.5v-4M12 15.5V8M16.5 15.5v-6" />
-      </svg>
-    );
-  }
+import "./workspace-switcher.css";
 
-  return (
-    <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5l2.2 4.5 4.9.7-3.5 3.4.8 4.9L12 15.9 7.6 18l.8-4.9-3.5-3.4 4.9-.7L12 4.5z" />
-    </svg>
-  );
-}
-
-/**
- * ModuleSwitcher: lets users switch between all enabled OyamaCRM modules.
- */
-export default function ModuleSwitcher({
-  moduleKey,
-  settings,
-  scrolled = false,
-}: {
-  moduleKey: TopBarModuleKey;
-  settings: WorkspaceSettings;
-  scrolled?: boolean;
-}) {
+/** Workspace launcher with role-aware choices and a focused keyboard search. */
+export default function ModuleSwitcher({ moduleKey, settings, scrolled = false }: { moduleKey: TopBarModuleKey; settings: WorkspaceSettings; scrolled?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
   const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const [surveyAccess, setSurveyAccess] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(false);
+  const [accessError, setAccessError] = useState(false);
+  const [accessRetry, setAccessRetry] = useState(0);
+  const [position, setPosition] = useState({ left: 12, top: 64 });
   const dialogRef = useRef<HTMLDivElement>(null);
-  useDialogFocus(dialogRef, open, () => setOpen(false));
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dialogId = useId();
+  const close = useCallback(() => setOpen(false), []);
+  useDialogFocus(dialogRef, open, close, triggerRef);
 
   useEffect(() => {
     if (!open || !user) return;
     const controller = new AbortController();
+    setCheckingAccess(true); setAccessError(false);
     surveyWorkspaceAccess(user.role === "compassion_user", controller.signal).then(access => {
       if (!controller.signal.aborted) setSurveyAccess(access.DONOR.includes("view") || access.CLIENT.includes("view"));
-    }, () => { if (!controller.signal.aborted) setSurveyAccess(false); });
+    }, () => {
+      if (!controller.signal.aborted) { setSurveyAccess(false); setAccessError(true); }
+    }).finally(() => { if (!controller.signal.aborted) setCheckingAccess(false); });
     return () => controller.abort();
-  }, [open, user]);
+  }, [open, user, accessRetry]);
+
+  useEffect(() => { setOpen(false); setQuery(""); }, [pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const reposition = () => {
+      const bounds = triggerRef.current?.getBoundingClientRect();
+      if (bounds) setPosition({ left: Math.max(12, Math.min(bounds.left, window.innerWidth - 572)), top: bounds.bottom + 10 });
+    };
+    reposition(); window.addEventListener("resize", reposition);
+    return () => window.removeEventListener("resize", reposition);
+  }, [open]);
 
   const modules = useMemo(() => [
-    { key: "compassion", label: "Compassion CRM", helper: "Client care", href: "/compassion", icon: <WorkspaceSwitcherIcon moduleKey="compassion" />, active: moduleKey === "compassion" },
-    {
-      key: "donor",
-      label: "DonorCRM",
-      helper: "Fundraising",
-      href: "/",
-      icon: <WorkspaceSwitcherIcon moduleKey="donor" />,
-      active: moduleKey === "donor" && !pathname.startsWith("/reports"),
-    },
-    {
-      key: "letters",
-      label: "OyamaLetters",
-      helper: "Document studio",
-      href: "/oyama-letters",
-      icon: <WorkspaceSwitcherIcon moduleKey="letters" />,
-      active: moduleKey === "letters",
-    },
-    {
-      key: "events",
-      label: "Events",
-      helper: "Operations",
-      href: "/events",
-      icon: <WorkspaceSwitcherIcon moduleKey="events" />,
-      active: moduleKey === "events",
-    },
-    {
-      key: "surveys",
-      label: "Surveys",
-      helper: "Feedback studio",
-      href: "/surveys",
-      icon: <WorkspaceSwitcherIcon moduleKey="surveys" />,
-      active: moduleKey === "surveys",
-    },
-  ].filter((module) => {
-    if (module.key === "surveys") return module.active || surveyAccess;
-    if (user?.role === "compassion_user") return module.key === "compassion";
-    if (module.key === "donor") return settings.donorEnabled;
+    { key: "donor", label: "DonorCRM", helper: "Donors, gifts & fundraising", href: "/", Icon: Users, tone: "blue", active: moduleKey === "donor" && !pathname.startsWith("/quickbooks-sync") },
+    { key: "compassion", label: "Compassion CRM", helper: "Clients, care & follow-ups", href: "/compassion", Icon: HeartHandshake, tone: "rose", active: moduleKey === "compassion" },
+    { key: "letters", label: "OyamaLetters", helper: "Letters & document studio", href: "/oyama-letters", Icon: FileText, tone: "violet", active: moduleKey === "letters" },
+    { key: "events", label: "Events", helper: "Events, guests & operations", href: "/events", Icon: CalendarDays, tone: "amber", active: moduleKey === "events" },
+    { key: "surveys", label: "Surveys", helper: "Forms, feedback & responses", href: "/surveys", Icon: ClipboardList, tone: "teal", active: moduleKey === "surveys" },
+    { key: "quickbooks", label: "QuickBooks", helper: "Connection, review & gift sync", href: "/quickbooks-sync", Icon: Calculator, tone: "green", active: pathname.startsWith("/quickbooks-sync") },
+  ].filter(workspace => {
+    if (!user) return false;
+    if (workspace.key === "surveys") return workspace.active || surveyAccess;
+    if (user.role === "compassion_user") return workspace.key === "compassion";
+    if (workspace.key === "donor") return settings.donorEnabled;
+    if (workspace.key === "quickbooks") return settings.donorEnabled && ["admin", "manager", "staff"].includes(user.role);
     return true;
-  }), [moduleKey, pathname, settings.donorEnabled, surveyAccess, user?.role]);
+  }), [moduleKey, pathname, settings.donorEnabled, surveyAccess, user]);
+  const current = modules.find(workspace => workspace.active) ?? modules[0];
+  const filtered = modules.filter(workspace => `${workspace.label} ${workspace.helper}`.toLowerCase().includes(query.trim().toLowerCase()));
 
-  const current = useMemo(() => modules.find((m) => m.active) ?? modules[0], [modules]);
-
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
-
-  if (!current) return null;
-
-  const switcherTone = resolveModuleSwitcherTone(current.key as TopBarModuleKey, scrolled);
-  const isDonorWorkspace = moduleKey === "donor";
-
-  function switchTo(href: string) {
-    setOpen(false);
-    router.push(href);
+  function navigate(href: string) { setOpen(false); setQuery(""); router.push(href); }
+  function navigateByKeyboard(event: KeyboardEvent<HTMLDivElement>) {
+    if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;
+    const links = Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>("[data-workspace-choice]") ?? []);
+    if (!links.length) return;
+    const index = links.indexOf(document.activeElement as HTMLButtonElement);
+    const next = index < 0 ? (event.key === "ArrowDown" ? 0 : links.length - 1) : (index + (event.key === "ArrowDown" ? 1 : -1) + links.length) % links.length;
+    event.preventDefault(); links[next].focus();
   }
 
-  return (
-    <div className="relative shrink-0">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Switch workspace"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        className={`oyama-reference-workspace-switcher group relative flex items-center overflow-hidden rounded-2xl border backdrop-blur-xl transition-all duration-200 ease-out ${isDonorWorkspace ? "border-white/10 bg-white/[0.06] hover:border-white/20 hover:bg-white/[0.1]" : `hover:border-slate-400 ${switcherTone.button}`} ${scrolled ? "gap-1 px-1.5 py-0.5 xl:min-w-[150px] xl:gap-1.5 xl:px-2.5 xl:py-0.5" : "gap-1.5 px-2.5 py-1 xl:min-w-[182px] xl:gap-2 xl:px-3.5 xl:py-1"}`}
-      >
-        <span
-          aria-hidden="true"
-          className={`pointer-events-none absolute inset-0 bg-gradient-to-r ${isDonorWorkspace ? "from-emerald-300/10 via-transparent to-violet-300/10" : switcherTone.glow} transition-opacity duration-200 ${open ? "opacity-90" : "opacity-40 group-hover:opacity-60"}`}
-        />
-        <span className={`relative flex items-center justify-center rounded-xl border transition-all duration-300 ${isDonorWorkspace ? "border-emerald-300/30 bg-emerald-400/15 text-emerald-200" : (current.key === "donor" ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-700")} ${scrolled ? "h-5 w-5 xl:h-5 xl:w-5" : "h-6 w-6 xl:h-6 xl:w-6"}`}>
-          {current.icon}
-        </span>
-        <div className="relative hidden min-w-0 text-left leading-tight min-[1180px]:block lg:block">
-          <p className={`max-h-3.5 overflow-hidden text-[8px] uppercase tracking-[0.16em] ${isDonorWorkspace ? "text-slate-600" : "text-slate-500"}`}>Workspace</p>
-          <p className={`truncate font-semibold transition-[font-size,color] duration-300 ${scrolled ? "text-[10px]" : "text-[12px]"} ${isDonorWorkspace ? "text-white" : "text-slate-800"}`}>{current.label}</p>
-        </div>
-        <svg className={`relative h-3 w-3 transition-[transform,color] ${isDonorWorkspace ? "text-slate-300 group-hover:text-white" : "text-slate-500 group-hover:text-slate-700"} ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Switch workspace" tabIndex={-1} className={`fixed inset-x-2 bottom-2 z-50 mt-0 w-auto max-w-none overflow-hidden rounded-lg shadow-lg pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:absolute lg:inset-x-auto lg:left-0 lg:bottom-auto lg:top-full lg:mt-2 lg:w-[330px] lg:max-w-[calc(100vw-1rem)] lg:pb-0 ${isDonorWorkspace ? "border border-slate-200 bg-white text-slate-800" : "border border-slate-300 bg-white"}`}>
-            <div className={`border-b px-4 pt-3 pb-2.5 ${isDonorWorkspace ? "border-slate-100 bg-slate-50" : "border-slate-200 bg-slate-50"}`}>
-              <p className={`text-[10px] font-bold uppercase tracking-[0.22em] ${isDonorWorkspace ? "text-slate-600" : "text-slate-500"}`}>Switch Workspace</p>
-              <div className="mt-1 flex items-center justify-between gap-2">
-                <p className={`text-[11px] ${isDonorWorkspace ? "text-slate-600" : "text-slate-500"}`}>Move between modules without leaving your session.</p>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${isDonorWorkspace ? "bg-blue-50 text-blue-700 ring-1 ring-blue-100" : "bg-slate-100 text-slate-600"}`}>
-                  {modules.length} active
-                </span>
-              </div>
-            </div>
-            <div className="max-h-[min(66vh,30rem)] space-y-1.5 overflow-y-auto p-2.5">
-              {modules.map((m) => (
-                <button
-                  key={m.key}
-                  onClick={() => switchTo(m.href)}
-                  className={`w-full rounded-xl border px-3 py-2.5 text-left transition-colors ${m.active ? switcherTone.activeItem : isDonorWorkspace ? "border-transparent bg-transparent hover:border-blue-100 hover:bg-blue-50" : "border-transparent bg-transparent hover:border-slate-200 hover:bg-slate-50"}`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${m.active ? switcherTone.activeIcon : isDonorWorkspace ? "border-blue-100 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600"}`}>
-                      {m.icon}
-                    </span>
-                    <div className="min-w-0 flex-1 px-0.5">
-                      <p className={`truncate text-[12px] font-semibold ${isDonorWorkspace ? "text-slate-800" : "text-slate-900"}`}>{m.label}</p>
-                      <p className={`mt-0.5 truncate text-[10px] ${isDonorWorkspace ? "text-slate-600" : "text-slate-500"}`}>{m.helper}</p>
-                    </div>
-                    {m.active ? (
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${switcherTone.activePill}`}>
-                        Current
-                      </span>
-                    ) : (
-                        <svg className={`h-3.5 w-3.5 ${isDonorWorkspace ? "text-slate-500" : "text-slate-400"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 6l6 6-6 6" />
-                      </svg>
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
+  if (!current) return null;
+  const CurrentIcon = current.Icon;
+  return <>
+    <button ref={triggerRef} type="button" aria-label="Switch workspace" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? dialogId : undefined}
+      onClick={() => { setQuery(""); setOpen(value => !value); }} className={`oyama-workspace-trigger ${scrolled ? "oyama-workspace-trigger--compact" : ""}`}>
+      <span className={`oyama-workspace-icon oyama-workspace-icon--${current.tone}`}><CurrentIcon size={17} aria-hidden="true" /></span>
+      <span className="oyama-workspace-trigger-copy"><span>Workspace</span><strong>{current.label}</strong></span>
+      <ChevronDown size={14} aria-hidden="true" className={open ? "oyama-workspace-chevron-open" : ""} />
+    </button>
+    {open && createPortal(<div className="oyama-workspace-overlay">
+      <div className="oyama-workspace-backdrop" onClick={close} aria-hidden="true" />
+      <div ref={dialogRef} id={dialogId} role="dialog" aria-modal="true" aria-label="Switch workspace" tabIndex={-1}
+        className="oyama-workspace-dialog" style={{ left: position.left, top: position.top }} onKeyDown={navigateByKeyboard}>
+        <div className="oyama-workspace-heading"><span className="oyama-workspace-heading-icon"><LayoutGrid size={19} aria-hidden="true" /></span><div><h2>Your workspaces</h2><p>Choose where you want to work.</p></div><button type="button" onClick={close} aria-label="Close workspace switcher" className="oyama-workspace-close"><X size={18} aria-hidden="true" /></button></div>
+        <div className="oyama-workspace-search"><Search size={17} aria-hidden="true" /><input data-modal-autofocus aria-label="Find a workspace" placeholder="Find a workspace..." value={query} onChange={event => setQuery(event.target.value)} /><kbd>Esc</kbd></div>
+        <nav className="oyama-workspace-grid" aria-label="Available workspaces">
+          {filtered.map(workspace => <button data-workspace-choice type="button" key={workspace.key} onClick={() => navigate(workspace.href)} aria-current={workspace.active ? "page" : undefined} className={`oyama-workspace-choice ${workspace.active ? "oyama-workspace-choice--current" : ""}`}>
+            <span className={`oyama-workspace-icon oyama-workspace-icon--${workspace.tone}`}><workspace.Icon size={21} aria-hidden="true" /></span>
+            <span className="oyama-workspace-choice-copy"><strong>{workspace.label}</strong><span>{workspace.helper}</span></span>
+            {workspace.active ? <Check className="oyama-workspace-choice-indicator" size={16} aria-label="Current workspace" /> : <ArrowUpRight className="oyama-workspace-choice-indicator" size={16} aria-hidden="true" />}
+          </button>)}
+          {!filtered.length && <p className="oyama-workspace-empty" role="status">No workspaces match "{query}". Try another name.</p>}
+        </nav>
+        <div className="oyama-workspace-footer"><span>{checkingAccess ? "Checking workspace access..." : accessError ? "Survey access could not be checked." : `${modules.length} workspaces available`}</span>{accessError ? <button type="button" onClick={() => setAccessRetry(value => value + 1)}>Retry</button> : <span className="oyama-workspace-keyhint">Arrow keys to browse · Enter to open</span>}</div>
+      </div>
+    </div>, document.body)}
+  </>;
 }
-

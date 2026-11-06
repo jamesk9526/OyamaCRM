@@ -1,3 +1,4 @@
+import { parseEmailDesign, validateEmailTokens } from "./email.js";
 import { randomUUID } from "node:crypto";
 import type { Router } from "express";
 import type { Survey } from "@prisma/client";
@@ -9,7 +10,7 @@ import { auditSurvey, digest, invitationToken, requireOpen, surveyPath, surveyTr
 import { emailDecisions, surveyContacts } from "./contacts.js";
 
 const DAY = 24 * 60 * 60 * 1000;
-export const MAX_RECIPIENTS = 500;
+export const MAX_RECIPIENTS = 10000;
 
 export function publicOrigin() {
   const origin = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV !== "production" ? "http://localhost:3000" : "");
@@ -38,6 +39,11 @@ async function review(survey: Survey, actorId: string, input: Record<string, unk
   const subject = boundedText(input.subject, "Email subject", 160, true);
   if (/[\r\n\x00-\x1f]/.test(subject)) invalid("Use a single line for the subject.");
   const message = boundedText(input.message, "Email message", 3000, true);
+  validateEmailTokens(message);
+  if (survey.audience === "CLIENT" && input.emailDesign !== undefined) invalid("Custom invitation design is available for donor surveys.");
+  const emailDesign = parseEmailDesign(input.emailDesign);
+  if (input.allContacts !== undefined && typeof input.allContacts !== "boolean") invalid("Choose whether to include the full donor audience.");
+  if (input.allContacts && survey.audience !== "DONOR") invalid("Select client recipients individually.");
   const scheduledAt = input.sendAt == null ? null : dateInput(input.sendAt, "send time");
   const sendAt = scheduledAt ?? new Date();
   if (scheduledAt && scheduledAt.getTime() < Date.now()) invalid("Schedule a future send time or choose Send now.");
@@ -47,22 +53,25 @@ async function review(survey: Survey, actorId: string, input: Record<string, unk
   if (reminderDays && survey.closesAt && sendAt.getTime() + reminderDays * DAY >= survey.closesAt.getTime()) {
     invalid("Schedule the reminder before the survey closes.");
   }
-  const requested = ids(input.contactIds ?? [], MAX_RECIPIENTS, "contacts");
+  const recipientLimit = survey.audience === "DONOR" ? MAX_RECIPIENTS : 500;
+  const requested = ids(input.contactIds ?? [], recipientLimit, "contacts");
+  if (survey.identity === "LINKED" && requested.some(id => id.startsWith("list:"))) invalid("CRM-linked surveys require CRM donor records.");
   const listIds = ids(input.listIds ?? [], 10, "saved donor lists");
   if (survey.audience === "CLIENT" && listIds.length) invalid("Choose recipients from Compassion client records.");
   const lists = listIds.length ? await db.emailRecipientList.findMany({
     where: { organizationId, id: { in: listIds } },
-    select: { id: true, recipients: { select: { constituentId: true }, take: MAX_RECIPIENTS + 1 } },
+    select: { id: true, recipients: { select: { id: true, constituentId: true }, take: MAX_RECIPIENTS + 1 } },
   }) : [];
   if (lists.length !== listIds.length) invalid("A selected donor list is no longer available.");
-  if (lists.some(list => list.recipients.length > MAX_RECIPIENTS)) invalid("Select lists with up to 500 entries.");
+  if (lists.some(list => list.recipients.length > MAX_RECIPIENTS)) invalid("This list exceeds the 10,000-recipient review limit. Split it into smaller audience lists.");
   const entries = lists.flatMap(list => list.recipients);
-  const unlinkedEntries = entries.filter(row => !row.constituentId).length;
-  const contactIds = [...new Set([...requested, ...entries.flatMap(row => row.constituentId ? [row.constituentId] : [])])];
-  if (contactIds.length > MAX_RECIPIENTS) invalid("Select up to 500 distinct recipients per batch.");
+  const unlinkedEntries = survey.identity === "LINKED" ? entries.filter(row => !row.constituentId).length : 0;
+  const all = input.allContacts ? await surveyContacts(organizationId, survey.audience, { all: true }) : [];
+  const contactIds = [...new Set([...requested, ...all.map(row => row.id), ...entries.flatMap(row => row.constituentId ? [row.constituentId] : survey.identity === "ANONYMOUS" ? [`list:${row.id}`] : [])])].sort();
+  if (contactIds.length > recipientLimit) invalid(`This audience exceeds ${recipientLimit.toLocaleString("en-US")} distinct recipients. Choose smaller lists.`);
   const revision = await db.surveyRevision.findUniqueOrThrow({
     where: { organizationId_surveyId_number: { organizationId, surveyId: survey.id, number: survey.published } },
-    select: { id: true, number: true },
+    select: { id: true, number: true, definition: true },
   });
   const [contacts, prior, sender] = await Promise.all([
     surveyContacts(organizationId, survey.audience, { ids: contactIds }),
@@ -85,8 +94,8 @@ async function review(survey: Survey, actorId: string, input: Record<string, unk
   const missing = contactIds.length - contacts.length;
   const ready = rows.filter(row => row.excluded === null);
   const reviewHash = digest(JSON.stringify({ organizationId, actorId, revision, sender, origin,
-    subject, message, sendAt: scheduledAt, reminderDays, closesAt: survey.closesAt, rows, missing, unlinkedEntries }));
-  return { rows, ready, missing, unlinkedEntries, revision, reviewHash, sender, origin, subject, message,
+    subject, message, emailDesign, sendAt: scheduledAt, reminderDays, closesAt: survey.closesAt, rows, missing, unlinkedEntries }));
+  return { rows, ready, missing, unlinkedEntries, revision, reviewHash, sender, origin, subject, message, emailDesign,
     sendAt, scheduledAt, reminderDays, closesAt: survey.closesAt, identity: survey.identity };
 }
 
@@ -101,13 +110,14 @@ export function installDistributionRoutes(router: Router) {
     const survey = await authorizedSurvey(req, "send");
     if (survey.audience !== "DONOR") notFound();
     res.json(await db.emailRecipientList.findMany({ where: { organizationId: survey.organizationId },
-      orderBy: { name: "asc" }, select: { id: true, name: true }, take: 100 }));
+      orderBy: { name: "asc" }, select: { id: true, name: true, _count: { select: { recipients: true } } }, take: 1000 }));
   });
 
   router.post("/:id/personal-link", async (req, res) => {
     const survey = await authorizedSurvey(req, "send");
     if (survey.identity !== "LINKED") invalid("Anonymous surveys use a shared link.");
     const contactId = boundedText(req.body?.contactId, "Contact", 64, true);
+    if (contactId.startsWith("list:")) invalid("Personal invitations require a CRM donor record.");
     const [contact] = await surveyContacts(survey.organizationId, survey.audience, { ids: [contactId] });
     if (!contact) notFound();
     if (contact.doNotContact) invalid("This contact is marked do not contact.");
@@ -150,9 +160,9 @@ export function installDistributionRoutes(router: Router) {
     const actorId = actor(req);
     const requestKey = boundedText(body.requestKey, "Request key", 64, true);
     const reviewHash = boundedText(body.reviewHash, "Review key", 64, true);
-    const requestHash = digest(JSON.stringify({ contactIds: ids(body.contactIds ?? [], MAX_RECIPIENTS, "contacts"),
+    const requestHash = digest(JSON.stringify({ contactIds: ids(body.contactIds ?? [], survey.audience === "DONOR" ? MAX_RECIPIENTS : 500, "contacts"),
       listIds: ids(body.listIds ?? [], 10, "saved donor lists"),
-      subject: body.subject, message: body.message, sendAt: body.sendAt ?? null, reminderDays: body.reminderDays ?? null, reviewHash }));
+      subject: body.subject, message: body.message, ...(body.emailDesign === undefined ? {} : { emailDesign: parseEmailDesign(body.emailDesign) }), ...(body.allContacts === true ? { allContacts: true } : {}), sendAt: body.sendAt ?? null, reminderDays: body.reminderDays ?? null, reviewHash }));
     const saved = await surveyTransaction(organizationId, survey.id, async (tx, current) => {
       const prior = await tx.surveyDistribution.findUnique({
         where: { organizationId_requestKey: { organizationId, requestKey } }, include: { revision: { select: { surveyId: true } } },
@@ -168,7 +178,7 @@ export function installDistributionRoutes(router: Router) {
       if (!checked.sender) invalid("Configure the organization email sender first.");
       if (!checked.ready.length) invalid("Select at least one eligible recipient.");
       const distribution = await tx.surveyDistribution.create({ data: { organizationId, actorId, requestKey, requestHash, reviewHash,
-        revisionId: checked.revision.id, subject: checked.subject, message: checked.message, sender: checked.sender, origin: checked.origin,
+        revisionId: checked.revision.id, subject: checked.subject, message: checked.message, emailDesign: checked.emailDesign, sender: checked.sender, origin: checked.origin,
         sendAt: checked.sendAt, reminderDays: checked.reminderDays } });
       const invitations = checked.ready.map(row => {
         const id = randomUUID();
@@ -176,11 +186,12 @@ export function installDistributionRoutes(router: Router) {
           addressHash: digest(row.email), tokenHash: current.identity === "LINKED" ? digest(invitationToken(id)) : null,
           expiresAt: invitationExpiry(current, checked.sendAt, checked.reminderDays) };
       });
-      await tx.surveyInvitation.createMany({ data: invitations });
-      await tx.surveyDeliveryJob.createMany({ data: invitations.flatMap(({ id }) => {
+      for (let i = 0; i < invitations.length; i += 500) await tx.surveyInvitation.createMany({ data: invitations.slice(i, i + 500) });
+      const jobs = invitations.flatMap(({ id }) => {
         const first = { organizationId, invitationId: id, reminder: false, dueAt: checked.sendAt };
         return checked.reminderDays ? [first, { ...first, reminder: true, dueAt: new Date(checked.sendAt.getTime() + checked.reminderDays * DAY) }] : [first];
-      }) });
+      });
+      for (let i = 0; i < jobs.length; i += 500) await tx.surveyDeliveryJob.createMany({ data: jobs.slice(i, i + 500) });
       await auditSurvey(req, current.audience, "SURVEY_DISTRIBUTION_QUEUED", current.id, tx);
       return distribution;
     });

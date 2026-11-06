@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 type GlobalStatus = "SUBSCRIBED" | "PARTIALLY_SUBSCRIBED" | "UNSUBSCRIBED" | "UNKNOWN";
 type CategoryStatus = "SUBSCRIBED" | "UNSUBSCRIBED";
@@ -82,7 +82,7 @@ export default function PublicPreferencesPage({ token }: { token: string }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          globalStatus,
+          ...(payload?.categoryHint === "SURVEY" ? {} : { globalStatus }),
           categoryPreferences,
         }),
       });
@@ -138,7 +138,7 @@ export default function PublicPreferencesPage({ token }: { token: string }) {
           </div>
         )}
 
-        <div className="space-y-2">
+        {payload.categoryHint === "SURVEY" ? <p className="text-sm text-gray-600">These controls apply only to survey invitations. Other email preferences stay unchanged.</p> : <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700" htmlFor="global-status">Global subscription status</label>
           <select
             id="global-status"
@@ -152,7 +152,7 @@ export default function PublicPreferencesPage({ token }: { token: string }) {
             <option value="UNSUBSCRIBED">Unsubscribed</option>
             <option value="UNKNOWN">Unknown</option>
           </select>
-        </div>
+        </div>}
 
         <div className="space-y-2">
           <h2 className="text-sm font-medium text-gray-700">Email categories</h2>

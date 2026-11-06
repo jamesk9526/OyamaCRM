@@ -14,7 +14,22 @@ export type Answer = string | string[] | number | boolean;
 export type Answers = Record<string, Answer>;
 export type Rule = { questionId: string; operator: "is" | "contains" | "atMost" | "atLeast"; value: string | number | boolean };
 export type Question = { id: string; title: string; type: QuestionType; required: boolean; options: string[]; rule?: Rule };
+export type Appearance = { logoUrl: string; logoAlt: string; accentColor: string; backgroundColor: string; font: "sans" | "serif"; buttonLabel: string };
+export const defaultAppearance: Appearance = { logoUrl: "", logoAlt: "Organization logo", accentColor: "#1763b8", backgroundColor: "#f0f6fc", font: "sans", buttonLabel: "Submit response" };
+export function parseAppearance(value: unknown): Appearance {
+  const raw = value === undefined ? {} : record(value);
+  const color = (key: string) => { const v = raw[key] ?? defaultAppearance[key as keyof Appearance]; if (typeof v !== "string" || !/^#[a-f\d]{6}$/i.test(v)) invalid("Choose a six-digit hex color."); return v; };
+  const logoUrl = boundedText(raw.logoUrl ?? "", "Logo", 2048);
+  if (logoUrl && !(/^\/(?!\/)[^\s<>"\\]*$/.test(logoUrl) || (() => { try { const u = new URL(logoUrl); return u.protocol === "https:" && !u.username && !u.password; } catch { return false; } })())) invalid("Choose a PNG, JPEG or WebP logo, or a secure image URL.");
+  if (raw.font !== undefined && raw.font !== "sans" && raw.font !== "serif") invalid("Choose a supported survey font.");
+  return { logoUrl, logoAlt: boundedText(raw.logoAlt ?? defaultAppearance.logoAlt, "Logo description", 160, true), accentColor: color("accentColor"), backgroundColor: color("backgroundColor"), font: raw.font === "serif" ? "serif" : "sans", buttonLabel: boundedText(raw.buttonLabel ?? defaultAppearance.buttonLabel, "Submit button", 80, true) };
+}
+export function accentText(color: string) {
+  const rgb = [1, 3, 5].map(i => { const c = parseInt(color.slice(i, i + 2), 16) / 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; });
+  return rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722 > .179 ? "#000000" : "#ffffff";
+}
 export type Definition = {
+  appearance?: Appearance;
   title: string;
   introduction: string;
   thanks: string;
@@ -136,7 +151,7 @@ export function parseDefinition(value: unknown, publishing = false): Definition 
   if (publishing && (!sections.length || sections.some(section => !section.questions.length))) {
     invalid("Add at least one question to each section.");
   }
-  return { title, introduction, thanks, sections };
+  return { title, introduction, thanks, sections, ...(raw.appearance === undefined ? {} : { appearance: parseAppearance(raw.appearance) }) };
 }
 
 export function shown(rule: Rule | undefined, answers: Answers): boolean {

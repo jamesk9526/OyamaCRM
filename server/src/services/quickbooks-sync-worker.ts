@@ -46,17 +46,18 @@ export async function processQuickBooksDailySyncPass(now = new Date()): Promise<
     });
     for (const plugin of plugins) {
       const config = asRecord(plugin.config);
-      if (config.qbDailySyncEnabled === false || !config.access_token) continue;
+      if (config.qbSendingMode !== "daily" || !config.access_token) continue;
       const local = localDateAndHour(now, plugin.organization.settings?.timezone ?? "America/Chicago");
       const dailyHour = Math.min(23, Math.max(0, Number(config.qbDailySyncHour ?? 23)));
       if (local.hour < dailyHour || config.qbLastDailySyncDate === local.date) continue;
 
       // Claim today's run before network writes. Stable request IDs and the DB
       // unique key provide a second idempotency layer if another process races.
-      await prisma.pluginSetting.update({
-        where: { id: plugin.id },
+      const claim = await prisma.pluginSetting.updateMany({
+        where: { id: plugin.id, updatedAt: plugin.updatedAt, config: { equals: config as Prisma.InputJsonValue } },
         data: { config: { ...config, qbLastDailySyncDate: local.date, qbLastDailySyncStartedAt: now.toISOString() } as Prisma.InputJsonValue },
       });
+      if (claim.count !== 1) continue;
       await queueEligibleQuickBooksDonations(plugin.organizationId);
       const pending = await prisma.qBSyncQueueItem.findMany({
         where: { organizationId: plugin.organizationId, status: "PENDING" },
@@ -65,7 +66,7 @@ export async function processQuickBooksDailySyncPass(now = new Date()): Promise<
         select: { id: true },
       });
       for (const item of pending) {
-        const result = await syncOneQuickBooksItem(item.id, plugin.organizationId);
+        const result = await syncOneQuickBooksItem(item.id, plugin.organizationId, { background: true });
         if (result.success) state.lastSynced += 1;
         else state.lastFailed += 1;
       }

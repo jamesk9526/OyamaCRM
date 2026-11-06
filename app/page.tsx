@@ -11,6 +11,7 @@ import { useAuth } from "@/app/components/auth/AuthProvider";
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import NaturalisticDonorDashboard from "./components/dashboard/NaturalisticDonorDashboard";
 import DashboardLayoutModal from "./components/dashboard/DashboardLayoutModal";
+import QuickBooksWidget from "./components/quickbooks/QuickBooksWidget";
 import DashboardInsights from "./components/dashboard/DashboardInsights";
 import { WIDGET_META } from "./components/dashboard/dashboardPageConfig";
 import { useDashboardPageState } from "./components/dashboard/useDashboardPageState";
@@ -43,7 +44,7 @@ export default function DashboardPage() {
         headerActions={(
           <button type="button" className="donor-button" onClick={dashboardState.openCustomizeModal}><SlidersHorizontal className="h-4 w-4" aria-hidden="true" />Customize dashboard</button>
         )}
-        extraSections={<div id="dashboard-insights"><DashboardInsights dashboardState={dashboardState} insightsExpanded={insightsExpanded} setInsightsExpanded={setInsightsExpanded} /></div>}
+        extraSections={<div id="dashboard-insights"><QuickBooksWidget refreshVersion={dashboardState.refreshVersion} /><DashboardInsights dashboardState={dashboardState} insightsExpanded={insightsExpanded} setInsightsExpanded={setInsightsExpanded} /></div>}
       />
 
       {dashboardState.showCustomizeModal ? (

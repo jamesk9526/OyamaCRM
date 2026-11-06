@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
@@ -51,7 +51,7 @@ const defaultState: PluginState = {
   qbRedirectUri: null,
   qbClientIdPreview: null,
   qbAutoQueue: true,
-  qbDailySyncEnabled: true,
+  qbDailySyncEnabled: false,
   qbDailySyncHour: 23,
   qbLastDailySyncDate: null,
   qbConnectedAt: null,
@@ -83,7 +83,7 @@ export function PluginProvider({ children }: { children: ReactNode }) {
   const [tick, setTick] = useState(0);
 
   // Refresh function increments tick to trigger re-fetch
-  const refresh = () => setTick((t) => t + 1);
+  const refresh = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,7 +125,7 @@ export function PluginProvider({ children }: { children: ReactNode }) {
             qbRedirectUri: data.redirectUri ?? null,
             qbClientIdPreview: data.clientIdPreview ?? null,
             qbAutoQueue: data.autoQueue !== false,
-            qbDailySyncEnabled: data.dailySyncEnabled !== false,
+            qbDailySyncEnabled: data.dailySyncEnabled === true,
             qbDailySyncHour: data.dailySyncHour ?? 23,
             qbLastDailySyncDate: data.lastDailySyncDate ?? null,
             qbConnectedAt: data.connectedAt ?? null,

@@ -77,7 +77,7 @@ async function resolveCustomerRef(client: QBApiClient, baseUrl: string, realmId:
 }
 
 async function resolveItemRef(client: QBApiClient, baseUrl: string, realmId: string, requestedName?: string) {
-  const candidateNames = Array.from(new Set([requestedName?.trim(), "Donations", "Services"].filter(Boolean) as string[]));
+  const candidateNames = requestedName?.trim() ? [requestedName.trim()] : ["Donations", "Services"];
   for (const name of candidateNames) {
     const query = `select Id, Name from Item where Name = '${qboString(name)}' and Active = true maxresults 1`;
     const found = await queryQB<{ QueryResponse?: { Item?: Array<{ Id: string; Name?: string }> } }>(client, baseUrl, realmId, query);
@@ -180,7 +180,7 @@ async function createOAuthClient(credentials: QBCredentials) {
     clientSecret: credentials.clientSecret,
     environment: credentials.environment,
     redirectUri: credentials.redirectUri,
-    logging: process.env.NODE_ENV !== "production",
+    logging: false,
   });
 }
 
@@ -314,11 +314,20 @@ export async function handleOAuthCallback(
     || !timingSafeEqual(Buffer.from(expectedHash), Buffer.from(actualHash))) {
     throw new Error("QuickBooks OAuth state is invalid or expired.");
   }
+  // Consume state atomically before exchanging a single-use authorization code.
+  const consumed = await prisma.pluginSetting.updateMany({
+    where: { id: statePlugin!.id, updatedAt: statePlugin!.updatedAt, config: { path: "$.qbOAuthStateHash", equals: expectedHash } },
+    data: { config: { ...stateConfig, qbOAuthStateHash: null, qbOAuthStateExpiresAt: null } as Prisma.InputJsonValue },
+  });
+  if (consumed.count !== 1) throw new Error("QuickBooks authorization has already been used. Connect again.");
+  const callback = new URL(callbackUrl);
+  if (callback.searchParams.has("error")) throw new Error("QuickBooks authorization was canceled.");
+  const realmId = callback.searchParams.get("realmId") ?? "";
+  if (!/^\d+$/.test(realmId)) throw new Error("QuickBooks did not return a valid company ID.");
+  const previousRealm = stateConfig.qbCompanyRealmId ?? stateConfig.realmId;
+  if (previousRealm && previousRealm !== realmId) throw new Error("Reconnect the original QuickBooks company to preserve accounting history.");
   const credentials = await resolveCredentials(organizationId);
-  if (!credentials) {
-    throw new Error("QuickBooks runtime credentials are missing.");
-  }
-
+  if (!credentials) throw new Error("QuickBooks runtime credentials are missing.");
   const client = await createOAuthClient(credentials);
 
   // Exchange the auth code for tokens
@@ -331,7 +340,7 @@ export async function handleOAuthCallback(
     refresh_token: String(rawToken.refresh_token ?? ""),
     expires_in: Number(rawToken.expires_in ?? 3600),
     x_refresh_token_expires_in: Number(rawToken.x_refresh_token_expires_in ?? 8726400),
-    realmId: String(rawToken.realmId ?? ""),
+    realmId,
     createdAt: Date.now(),
   };
 
@@ -344,6 +353,7 @@ export async function handleOAuthCallback(
     ...(payload as unknown as Record<string, unknown>),
     // This is the accounting cutoff, not the plugin-enable time. Preserve the
     // first successful connection across token refreshes and reconnects.
+    qbCompanyRealmId: realmId,
     qbConnectedAt: asRecord(existing?.config).qbConnectedAt ?? new Date().toISOString(),
     qbOAuthStateHash: null,
     qbOAuthStateExpiresAt: null,
@@ -455,7 +465,9 @@ export async function revokeTokens(organizationId: string): Promise<void> {
         refresh_token: null,
         expires_in: null,
         x_refresh_token_expires_in: null,
-        realmId: null,
+        // Retain company identity across disconnects to protect sent history.
+        // Connection state is determined by tokens.
+
         createdAt: null,
       }) as Prisma.InputJsonValue,
     },

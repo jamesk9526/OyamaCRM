@@ -1,0 +1,11 @@
+{
+  "fixture": "Synthetic survey API and email transport",
+  "checks": [
+    "Template creation, question editor, responsive builder, save, keyboard error focus, conditional question, multi-page preview",
+    "Publication review, link generation, anonymous reminder policy, exact recipient confirmation and synthetic delivery history",
+    "Survey-only public unsubscribe and preferences expose no global opt-out controls; POST payloads change only SURVEY",
+    "Public mobile layout without CRM chrome, anonymous submission, response chart and detail, CSV download",
+    "Compassion-only account can open its survey library with donor audience hidden"
+  ],
+  "pageErrors": []
+}

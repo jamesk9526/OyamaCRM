@@ -3,14 +3,16 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, Link2, Mail, Search } from "lucide-react";
 import { formatDate, identities, localToIso, message, surveyRequest, surveyWrite, type SurveyDetail } from "./client";
+import { renderSurveyEmail, type EmailDesign } from "@/server/src/surveys/email";
+import type { Definition } from "@/server/src/surveys/definition";
 import SurveyDialog from "./SurveyDialog";
 
 type Contact = { id: string; name: string; email: string };
-type List = { id: string; name: string };
-type DraftDistribution = { subject: string; message: string; sendAt: string | null; reminderDays: number | null; contactIds: string[]; listIds: string[] };
+type List = { id: string; name: string; _count?: { recipients: number } };
+type DraftDistribution = { allContacts: boolean; emailDesign?: EmailDesign; subject: string; message: string; sendAt: string | null; reminderDays: number | null; contactIds: string[]; listIds: string[] };
 type Review = { rows: (Contact & { excluded: string | null })[]; ready: number; missing: number; unlinkedEntries: number;
   sender: string | null; subject: string; message: string; scheduledAt: string | null; closesAt: string | null;
-  reminderDays: number | null; revision: { number: number }; reviewHash: string };
+  reminderDays: number | null; emailDesign?: EmailDesign; revision: { number: number; definition?: Definition }; reviewHash: string };
 type Batch = { id: string; revision: number; subject: string; sendAt: string; recipients: number; reminderDays: number | null; counts: Record<string, number> };
 type Invitation = { id: string; name: string; expiresAt: string; revokedAt: string | null; completedAt: string | null;
   revision: { number: number }; jobs: { status: string; reminder: boolean; outcome: string | null }[] };
@@ -42,6 +44,8 @@ export default function SurveyShare({ survey }: { survey: SurveyDetail }) {
   const [selected, setSelected] = useState<Contact[]>([]);
   const [lists, setLists] = useState<List[]>([]);
   const [listIds, setListIds] = useState<string[]>([]);
+  const [allContacts, setAllContacts] = useState(false);
+  const [emailDesign, setEmailDesign] = useState<EmailDesign>({ heading: survey.title, buttonLabel: "Take the survey", signature: "Thank you for sharing your feedback." });
   const [subject, setSubject] = useState("Share your feedback");
   const [body, setBody] = useState("We would appreciate your feedback. Please use the link below to complete a short survey.");
   const [schedule, setSchedule] = useState("");
@@ -95,7 +99,7 @@ export default function SurveyShare({ survey }: { survey: SurveyDetail }) {
   function preview(event: React.FormEvent) {
     event.preventDefault();
     void run(async () => {
-      const input: DraftDistribution = { subject, message: body, contactIds: selected.map(contact => contact.id), listIds,
+      const input: DraftDistribution = { allContacts, ...(audience === "DONOR" ? { emailDesign } : {}), subject, message: body, contactIds: selected.map(contact => contact.id), listIds,
         sendAt: schedule ? localToIso(schedule, survey.timezone) : null, reminderDays: reminder ? Number(days) : null };
       const review = await surveyWrite<Review>(audience, `${base}/distributions/review`, input);
       setReviewError("");
@@ -110,7 +114,7 @@ export default function SurveyShare({ survey }: { survey: SurveyDetail }) {
       await surveyWrite(audience, `${base}/distributions`, { ...reviewed.input, reviewHash: reviewed.review.reviewHash, requestKey: reviewed.requestKey });
       setReviewed(null);
       setSelected([]);
-      setListIds([]);
+      setListIds([]); setAllContacts(false);
       setNotice("Distribution queued. Check delivery history for progress.");
       setRefresh(value => value + 1);
     } catch (reason) { setReviewError(message(reason)); }
@@ -144,7 +148,8 @@ export default function SurveyShare({ survey }: { survey: SurveyDetail }) {
               maxLength={100} placeholder="Find by name or email" onChange={event => setSearch(event.currentTarget.value)} />
             <button className="survey-btn"><Search size={16} /> Find</button>
           </form>
-          <p className="survey-caption">{selected.length} contacts selected for email</p>
+          {audience === "DONOR" && <label className="survey-row survey-rule"><input type="checkbox" checked={allContacts} onChange={event => setAllContacts(event.currentTarget.checked)} />All open donor records with eligible email</label>}
+          <p className="survey-caption">{allContacts ? "Full donor audience selected" : `${selected.length} contacts selected for email`}. Review resolves entire selected lists, removes duplicates and checks survey preferences. Up to 10,000 recipients per distribution.</p>
           {selected.length > 0 && <div className="survey-row">{selected.map(contact => <button type="button" className="survey-btn" key={contact.id}
             onClick={() => setSelected(values => values.filter(value => value.id !== contact.id))}>Remove {contact.name}</button>)}</div>}
           {!contacts && !error && <p role="status">Loading contacts…</p>}
@@ -163,12 +168,12 @@ export default function SurveyShare({ survey }: { survey: SurveyDetail }) {
               })}>Personal link</button>}
             </div>)}
           </div>}
-          {!!lists.length && <fieldset><legend>Saved donor lists</legend><div className="survey-choice-list survey-stack-tight">
+          {!!lists.length && <fieldset><legend>Full audience lists</legend><div className="survey-choice-list survey-stack-tight">
             {lists.map(list => <label className="survey-row" key={list.id}><input type="checkbox" checked={listIds.includes(list.id)}
               disabled={listIds.length >= 10 && !listIds.includes(list.id)} onChange={event => {
                 const checked = event.currentTarget.checked;
                 setListIds(values => checked ? [...values, list.id] : values.filter(value => value !== list.id));
-              }} />{list.name}</label>)}
+              }} />{list.name}{list._count ? ` · ${list._count.recipients.toLocaleString()} entries` : ""}</label>)}
           </div></fieldset>}
         </section>
       </div>
@@ -179,7 +184,16 @@ export default function SurveyShare({ survey }: { survey: SurveyDetail }) {
           : "Contact preferences and suppressions are checked before each delivery."}</p>
         <form className="survey-stack" onSubmit={preview}>
           <label className="survey-field">Subject<input required value={subject} maxLength={160} onChange={event => setSubject(event.currentTarget.value)} /></label>
+          {audience === "DONOR" && <label className="survey-field">Email heading<input value={emailDesign.heading} maxLength={160} onChange={event => setEmailDesign({ ...emailDesign, heading: event.currentTarget.value })} /></label>}
           <label className="survey-field">Message<textarea required value={body} maxLength={3000} onChange={event => setBody(event.currentTarget.value)} /></label>
+          {audience === "DONOR" && <>
+            <p className="survey-caption">Personalize with {"{{name}}"} and {"{{survey_link}}"}. A survey button and survey-only unsubscribe link are always included.</p>
+            <label className="survey-field">Survey button text<input required value={emailDesign.buttonLabel} maxLength={80} onChange={event => setEmailDesign({ ...emailDesign, buttonLabel: event.currentTarget.value })} /></label>
+            <label className="survey-field">Email signature<textarea value={emailDesign.signature} maxLength={1000} onChange={event => setEmailDesign({ ...emailDesign, signature: event.currentTarget.value })} /></label>
+            <details><summary>Preview invitation email</summary><p className="survey-caption">Sample recipient. The review uses the published survey logo and colors.</p>
+              <div className="survey-email-preview" onClick={event => event.preventDefault()} dangerouslySetInnerHTML={{ __html: renderSurveyEmail({ message: body, design: { ...emailDesign, buttonLabel: emailDesign.buttonLabel || "Open survey" }, appearance: survey.draft.appearance, name: "Sample donor", origin: "https://preview.invalid", surveyUrl: "https://preview.invalid/s/respond", preferences: [{ label: "Unsubscribe from surveys", href: "#survey-preferences" }] }).html }} />
+            </details>
+          </>}
           <div className="survey-grid">
             <label className="survey-field">Schedule ({survey.timezone})<input type="datetime-local" value={schedule} onChange={event => setSchedule(event.currentTarget.value)} />
               <span className="survey-caption">Leave blank to send after review.</span></label>
@@ -191,7 +205,7 @@ export default function SurveyShare({ survey }: { survey: SurveyDetail }) {
                 "All recipients of the original email get the reminder, including people who already responded."}</p>
             </div>
           </div>
-          <div><button className="survey-btn survey-primary" disabled={busy || (!selected.length && !listIds.length)}>{busy ? "Checking recipients…" : "Review invitations"}</button></div>
+          <div><button className="survey-btn survey-primary" disabled={busy || (!selected.length && !listIds.length && !allContacts)}>{busy ? "Checking recipients…" : "Review invitations"}</button></div>
         </form>
       </section>
     </>}
@@ -226,8 +240,9 @@ export default function SurveyShare({ survey }: { survey: SurveyDetail }) {
           <p>Closes · {reviewed.review.closesAt ? formatDate(reviewed.review.closesAt, survey.timezone) : "When manually closed"}</p>
           <p>Reminder · {reviewed.review.reminderDays ? `After ${reviewed.review.reminderDays} days · ${isLinked ? "nonrespondents" : "all original recipients"}` : "Off"}</p>
         </div>
-        <div className="survey-stack-tight"><h3>{reviewed.review.subject}</h3><p style={{ whiteSpace: "pre-wrap" }}>{reviewed.review.message}</p>
-          <p className="survey-caption">The survey link{survey.audience === "DONOR" ? " and email preference links" : ""} will be added below the message.</p></div>
+        <div className="survey-stack-tight"><h3>{reviewed.review.subject}</h3>
+          {audience === "DONOR" ? <div className="survey-email-preview" onClick={event => event.preventDefault()} dangerouslySetInnerHTML={{ __html: renderSurveyEmail({ message: reviewed.review.message, design: reviewed.review.emailDesign, appearance: reviewed.review.revision.definition?.appearance, name: "Sample donor", origin: "https://preview.invalid", surveyUrl: "https://preview.invalid/s/respond", preferences: [{ label: "Unsubscribe from surveys", href: "#survey-preferences" }] }).html }} /> : <p style={{ whiteSpace: "pre-wrap" }}>{reviewed.review.message}</p>}
+          <p className="survey-caption">Each recipient gets the survey link. Survey opt-outs change survey invitations only.</p></div>
         {reviewed.review.missing > 0 && <p className="survey-caption">{reviewed.review.missing} unavailable CRM records excluded.</p>}
         {reviewed.review.unlinkedEntries > 0 && <p className="survey-caption">{reviewed.review.unlinkedEntries} list entries without a CRM record excluded.</p>}
         <div className="survey-choice-list survey-stack-tight">

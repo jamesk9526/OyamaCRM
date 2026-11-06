@@ -5,6 +5,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { apiFetch } from "@/app/lib/auth-client";
 
 /** Shape of a sync queue item returned by the API */
@@ -67,6 +68,17 @@ interface EditState {
  * @param syncingAll - True when a sync-all is in progress (disables buttons)
  */
 export default function QBSyncQueueTable({ items, onRefresh, syncingAll = false }: Props) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const [sendingSelected, setSendingSelected] = useState(false);
+  const eligible = items.filter(item => ["PENDING", "FAILED"].includes(item.status));
+  const selectedVisible = selected.filter(id => eligible.some(item => item.id === id));
+  function toggle(id: string) { setSelected(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id]); }
+  async function sendSelected() {
+    if (!confirm(`Send ${selectedVisible.length} selected gifts to QuickBooks?`)) return;
+    setSendingSelected(true); setError(null);
+    const failures: string[] = [];
+    try { for (const id of selectedVisible) { try { await apiFetch(`/api/quickbooks/sync-queue/${id}/sync`, { method: "POST" }); } catch (error) { failures.push(error instanceof Error ? error.message : "Sending failed."); } } setSelected([]); if (failures.length) setError(`${failures.length} gifts failed: ${failures[0]}`); onRefresh(); } finally { setSendingSelected(false); }
+  }
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [editState, setEditState] = useState<EditState | null>(null);
@@ -75,6 +87,7 @@ export default function QBSyncQueueTable({ items, onRefresh, syncingAll = false 
 
   /** Trigger individual sync for one item */
   async function handleSync(id: string) {
+    if (!confirm("Send this donation to QuickBooks?")) return;
     setSyncingId(id);
     setError(null);
     try {
@@ -141,13 +154,15 @@ export default function QBSyncQueueTable({ items, onRefresh, syncingAll = false 
   if (items.length === 0) {
     return (
       <div className="text-center py-12 text-gray-400 text-sm">
-        No items in the queue. Add donations to the queue using the <strong>Add to QuickBooks Queue</strong> button when recording a donation.
+        No donations in this view. Eligible completed gifts are queued automatically after connection.
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
+      {eligible.length > 0 && <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-white p-3 text-sm"><label className="flex items-center gap-2"><input type="checkbox" aria-label="Select all gifts on this page" disabled={syncingAll || sendingSelected} checked={selectedVisible.length === eligible.length} onChange={event => setSelected(event.target.checked ? eligible.map(item => item.id) : [])} />Select page</label><button className="rounded-lg bg-blue-700 px-3 py-2 font-semibold text-white disabled:opacity-40" disabled={syncingAll || sendingSelected || !selectedVisible.length} onClick={sendSelected}>{sendingSelected ? "Sending…" : `Send selected (${selectedVisible.length})`}</button></div>}
+
       {error && (
         <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 flex justify-between">
           <span>{error}</span>
@@ -190,10 +205,10 @@ export default function QBSyncQueueTable({ items, onRefresh, syncingAll = false 
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">QB Account (optional)</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">QuickBooks service item (optional)</label>
               <input
                 type="text"
-                placeholder="e.g. Donations Income"
+                placeholder="e.g. Donations"
                 value={editState.qbAccount}
                 onChange={(e) => setEditState((s) => s && { ...s, qbAccount: e.target.value })}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -221,12 +236,14 @@ export default function QBSyncQueueTable({ items, onRefresh, syncingAll = false 
       {/* Queue table */}
       <div className="md:hidden rounded-xl border border-gray-200 divide-y divide-gray-100 bg-white">
         {items.map((item) => {
-          const isBusy = syncingAll || syncingId === item.id || removingId === item.id;
+          const isBusy = sendingSelected || syncingAll || syncingId === item.id || removingId === item.id;
           const canEdit = ["PENDING", "FAILED"].includes(item.status);
           const canSync = ["PENDING", "FAILED"].includes(item.status);
           const canRemove = item.status !== "SYNCED";
           return (
             <article key={item.id} className="px-3 py-3">
+              {canSync && <label className="mb-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={selectedVisible.includes(item.id)} disabled={isBusy} onChange={() => toggle(item.id)} />Select {item.customerName ?? "donation"}</label>}
+              {item.donation && <Link className="text-xs text-blue-700" href={`/donations/${item.donation.id}`}>View donation · {item.donation.paymentMethod} · {new Date(item.donation.date).toLocaleDateString()}</Link>}
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="font-medium text-gray-900 truncate">{item.customerName ?? "—"}</p>
@@ -309,13 +326,15 @@ export default function QBSyncQueueTable({ items, onRefresh, syncingAll = false 
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
             {items.map((item) => {
-              const isBusy = syncingAll || syncingId === item.id || removingId === item.id;
+              const isBusy = sendingSelected || syncingAll || syncingId === item.id || removingId === item.id;
               const canEdit = ["PENDING", "FAILED"].includes(item.status);
               const canSync = ["PENDING", "FAILED"].includes(item.status);
               const canRemove = item.status !== "SYNCED";
               return (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3">
+                    {canSync && <input type="checkbox" className="mr-2" aria-label={`Select ${item.customerName ?? "donation"}`} checked={selectedVisible.includes(item.id)} disabled={isBusy} onChange={() => toggle(item.id)} />}
+                    {item.donation && <Link className="block text-xs text-blue-700" href={`/donations/${item.donation.id}`}>View donation · {item.donation.paymentMethod} · {new Date(item.donation.date).toLocaleDateString()}</Link>}
                     <p className="font-medium text-gray-900">{item.customerName ?? "—"}</p>
                     {item.donation?.constituent && (
                       <p className="text-xs text-gray-400">

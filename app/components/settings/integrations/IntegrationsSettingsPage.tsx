@@ -64,8 +64,8 @@ function buildQuickBooksCard(payload: QuickBooksStatusPayload | null, error: str
       status: "Broken",
       summary: "QuickBooks status could not be loaded.",
       detail: error,
-      href: "/settings/integrations#plugins",
-      hrefLabel: "Open Plugins",
+      href: "/quickbooks-sync",
+      hrefLabel: "Open QuickBooks workspace",
     };
   }
 
@@ -74,10 +74,10 @@ function buildQuickBooksCard(payload: QuickBooksStatusPayload | null, error: str
       key: "quickbooks",
       title: "QuickBooks Online",
       status: "Not Implemented",
-      summary: "Plugin runtime credentials are missing.",
+      summary: "QuickBooks connection needs configuration.",
       detail: "Set QB_CLIENT_ID and QB_CLIENT_SECRET to enable OAuth setup.",
-      href: "/settings/integrations#plugins",
-      hrefLabel: "Open Plugins",
+      href: "/quickbooks-sync",
+      hrefLabel: "Open QuickBooks workspace",
     };
   }
 
@@ -88,8 +88,8 @@ function buildQuickBooksCard(payload: QuickBooksStatusPayload | null, error: str
       status: "Partially Working",
       summary: "Integration is available but currently disabled for this organization.",
       detail: `Environment: ${payload.environment}. Enable plugin access before staff can queue donation syncs.`,
-      href: "/settings/integrations#plugins",
-      hrefLabel: "Enable QuickBooks",
+      href: "/quickbooks-sync",
+      hrefLabel: "Open QuickBooks workspace",
     };
   }
 
@@ -100,8 +100,8 @@ function buildQuickBooksCard(payload: QuickBooksStatusPayload | null, error: str
       status: "Partially Working",
       summary: "Plugin is enabled but OAuth is not connected.",
       detail: `Environment: ${payload.environment}. Connect an Intuit realm to unlock manual queue syncing.`,
-      href: "/settings/integrations#plugins",
-      hrefLabel: "Connect QuickBooks",
+      href: "/quickbooks-sync",
+      hrefLabel: "Open QuickBooks workspace",
     };
   }
 

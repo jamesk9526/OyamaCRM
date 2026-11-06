@@ -110,17 +110,6 @@
   border-radius: 6px;
 }
 .oyama-reference-quick-add:hover { filter: brightness(.94); }
-.oyama-reference-workspace-switcher {
-  background: #fff !important;
-  border-color: #e0e6ec !important;
-  border-radius: 8px;
-  box-shadow: none !important;
-}
-.oyama-reference-workspace-switcher > span[aria-hidden="true"] { opacity: 0; }
-.oyama-reference-workspace-switcher > span:not([aria-hidden="true"]) { background: #e6f4f2 !important; color: #007f80 !important; border-color: transparent !important; }
-.oyama-reference-workspace-switcher p { color: #52647a !important; }
-.oyama-reference-workspace-switcher p:last-child { color: #101f43 !important; }
-.oyama-reference-workspace-switcher > svg { color: #52647a !important; }
 .oyama-reference-current-page { display: none; color: #30455f; font-size: 12px; white-space: nowrap; }
 .oyama-reference-current-page > span { margin-right: 10px; color: #99a7b6; }
 .oyama-reference-desktop-toolbar button[aria-label^="Reporting period:"],
@@ -199,9 +188,6 @@
   color: #1d4ed8 !important;
 }
 [data-donor-topbar="true"] :is(button, a):focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
-[data-donor-topbar="true"] .oyama-reference-workspace-switcher { border-color: transparent !important; padding-inline: 4px; }
-[data-donor-topbar="true"] .oyama-reference-workspace-switcher > span:not([aria-hidden="true"]) { background: #eaf3ff !important; color: #2563eb !important; }
-[data-donor-topbar="true"] .oyama-reference-workspace-switcher p:first-child { display: none; }
 [data-donor-topbar="true"] .oyama-reference-mobile-brand > a > span { color: var(--topbar-ink); }
 [data-donor-topbar="true"] .oyama-reference-mobile-brand > a > span > span { color: var(--topbar-muted); }
 [data-donor-topbar="true"] .oyama-topbar-actions > .w-px { background: var(--topbar-line); }
@@ -233,5 +219,3 @@
   box-shadow: none !important;
   outline: none;
 }
-[data-donor-topbar="true"] .oyama-reference-workspace-switcher { min-width: 136px; }
-[data-donor-topbar="true"] .oyama-reference-workspace-switcher p:last-child { font-size: 12px; }

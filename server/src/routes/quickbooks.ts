@@ -48,7 +48,8 @@ import {
 const router = Router();
 
 // All QuickBooks routes require authentication
-router.use(requireAuth);
+router.use((req, res, next) => req.path === "/callback" && req.method === "GET" ? next() : requireAuth(req, res, next));
+router.use((req, res, next) => req.path === "/callback" ? next() : requireRole("staff")(req, res, next));
 
 // ─── Helper: get org QB plugin setting ───────────────────────────────────────
 
@@ -206,10 +207,18 @@ router.get("/status", async (req, res) => {
     const runtime = await getQBRuntimeStatus(organizationId);
     const configured = await isQBConfigured(organizationId);
     const config = plugin?.config as Record<string, unknown> | null;
+    const [pending, failed, lastSent, organization] = await Promise.all([
+      prisma.qBSyncQueueItem.count({ where: { organizationId, status: "PENDING" } }),
+      prisma.qBSyncQueueItem.count({ where: { organizationId, status: "FAILED" } }),
+      prisma.qBSyncQueueItem.findFirst({ where: { organizationId, status: "SYNCED" }, orderBy: { syncedAt: "desc" }, select: { syncedAt: true } }),
+      prisma.organization.findUnique({ where: { id: organizationId }, select: { settings: { select: { timezone: true } } } }),
+    ]);
 
     res.json({
       data: {
         configured,
+        summary: { pending, failed, lastSuccessfulSync: lastSent?.syncedAt ?? null },
+        timezone: organization?.settings?.timezone ?? "America/Chicago",
         enabled: plugin?.enabled ?? false,
         connected: !!(config?.access_token),
         realmId: config?.realmId ?? null,
@@ -218,7 +227,7 @@ router.get("/status", async (req, res) => {
         redirectUri: runtime.redirectUri,
         clientIdPreview: runtime.clientIdPreview,
         autoQueue: config?.qbAutoQueue !== false,
-        dailySyncEnabled: config?.qbDailySyncEnabled !== false,
+        dailySyncEnabled: config?.qbSendingMode === "daily",
         dailySyncHour: Number(config?.qbDailySyncHour ?? 23),
         lastDailySyncDate: typeof config?.qbLastDailySyncDate === "string" ? config.qbLastDailySyncDate : null,
         connectedAt: typeof config?.qbConnectedAt === "string" ? config.qbConnectedAt : null,
@@ -237,6 +246,30 @@ router.get("/status", async (req, res) => {
  * Body: { enabled: boolean }
  * Enables or disables the QuickBooks plugin. Requires admin role.
  */
+router.get("/activity", async (req, res) => {
+  try {
+    const organizationId = await resolveOrg(req);
+    const items = await prisma.auditLog.findMany({ where: { organizationId, action: { startsWith: "QB_" } }, orderBy: { createdAt: "desc" }, take: 100, select: { id: true, action: true, createdAt: true, entityId: true, metadata: true, user: { select: { firstName: true, lastName: true } } } });
+    return res.json({ data: { items } });
+  } catch { return res.status(500).json({ error: { message: "Could not load QuickBooks activity." } }); }
+});
+
+router.put("/settings", requireRole("admin"), async (req, res) => {
+  try {
+    const organizationId = await resolveOrg(req);
+    if (!["manual", "daily"].includes(req.body?.sendingMode)) return res.status(400).json({ error: { message: "Choose manual or daily sending." } });
+    const plugin = await getQBPlugin(organizationId);
+    const config = configRecord(plugin?.config);
+    await prisma.pluginSetting.upsert({
+      where: { organizationId_pluginKey: { organizationId, pluginKey: "quickbooks" } },
+      create: { organizationId, pluginKey: "quickbooks", enabled: false, config: { qbSendingMode: req.body.sendingMode } },
+      update: { config: { ...config, qbSendingMode: req.body.sendingMode, qbDailySyncEnabled: req.body.sendingMode === "daily" } as Prisma.InputJsonValue },
+    });
+    await logAudit({ action: "QB_SETTINGS_UPDATED", entity: "PluginSetting", entityId: organizationId, organizationId, userId: req.user?.sub, metadata: { sendingMode: req.body.sendingMode } });
+    return res.json({ data: { sendingMode: req.body.sendingMode } });
+  } catch { return res.status(500).json({ error: { message: "Could not save QuickBooks sending settings." } }); }
+});
+
 router.put("/plugin", requireRole("admin"), async (req, res) => {
   try {
     const organizationId = await resolveOrg(req);
@@ -252,7 +285,7 @@ router.put("/plugin", requireRole("admin"), async (req, res) => {
       ...existingConfig,
       qbSyncEnabledAt: existingConfig.qbSyncEnabledAt ?? new Date().toISOString(),
       qbAutoQueue: true,
-      qbDailySyncEnabled: existingConfig.qbDailySyncEnabled ?? true,
+      qbDailySyncEnabled: existingConfig.qbSendingMode === "daily",
       qbDailySyncHour: existingConfig.qbDailySyncHour ?? 23,
     } : existingConfig;
     const plugin = await prisma.pluginSetting.upsert({
@@ -359,14 +392,14 @@ router.put("/runtime-config", requireRole("admin"), async (req, res) => {
  * GET /api/quickbooks/auth-uri
  * Returns the QB OAuth authorization URL for the frontend to redirect the user to.
  */
-router.get("/auth-uri", requireRole("admin"), async (req, res) => {
+router.get("/auth-uri", requireRole("staff"), async (req, res) => {
   try {
     const organizationId = await resolveOrg(req);
     if (!(await isQBConfigured(organizationId))) {
       return res.status(503).json({
         error: {
           code: "QB_NOT_CONFIGURED",
-          message: "QuickBooks runtime credentials are missing. Save credentials in Plugins or set env vars.",
+          message: "Ask your administrator to configure QB_CLIENT_ID, QB_CLIENT_SECRET and QB_REDIRECT_URI on the server.",
         },
       });
     }
@@ -381,16 +414,16 @@ router.get("/auth-uri", requireRole("admin"), async (req, res) => {
 /**
  * GET /api/quickbooks/callback
  * Handles the OAuth redirect from Intuit. The organizationId is in the state param.
- * On success, redirects the user to the Plugins settings page.
+ * On success, redirects the user to the QuickBooks workspace.
  */
 router.get("/callback", async (req, res) => {
   try {
     const state = req.query.state as string;
     if (!state) return res.status(400).send("Missing state parameter");
 
-    const protocol = req.protocol;
-    const host = req.get("host") ?? "localhost:4000";
-    const callbackUrl = `${protocol}://${host}${req.originalUrl}`;
+    const organizationIdFromState = state.split(".", 1)[0];
+    const runtime = await getQBRuntimeStatus(organizationIdFromState);
+    const callbackUrl = `${runtime.redirectUri.split("?")[0]}?${new URLSearchParams(req.query as Record<string, string>)}`;
 
     await handleOAuthCallback(callbackUrl, state);
     const organizationId = state.split(".", 1)[0];
@@ -404,12 +437,13 @@ router.get("/callback", async (req, res) => {
       metadata: { pluginKey: "quickbooks", excludedPreConnection },
     });
 
-    const frontendOrigin = process.env.NEXT_PUBLIC_API_URL?.replace(":4000", ":3650") ?? "http://localhost:3650";
-    return res.redirect(`${frontendOrigin}/settings/plugins?qb=connected`);
+    const frontendOrigin = process.env.NEXT_PUBLIC_APP_URL ?? process.env.FRONTEND_ORIGIN ?? "http://localhost:3000";
+    return res.redirect(`${frontendOrigin}/quickbooks-sync?qb=connected`);
   } catch (err) {
-    console.error("[QB] callback error:", err);
-    const frontendOrigin = process.env.NEXT_PUBLIC_API_URL?.replace(":4000", ":3650") ?? "http://localhost:3650";
-    return res.redirect(`${frontendOrigin}/settings/plugins?qb=error`);
+    console.error("[QB] callback failed:", err instanceof Error ? err.name : "AuthorizationError");
+    const frontendOrigin = process.env.NEXT_PUBLIC_APP_URL ?? process.env.FRONTEND_ORIGIN ?? "http://localhost:3000";
+    const reason = err instanceof Error && err.message.includes("original QuickBooks company") ? "company" : err instanceof Error && err.message.includes("canceled") ? "canceled" : "authorization";
+    return res.redirect(`${frontendOrigin}/quickbooks-sync?qb=error&reason=${reason}`);
   }
 });
 
@@ -448,6 +482,7 @@ router.get("/sync-queue", async (req, res) => {
   try {
     const organizationId = await resolveOrg(req);
     const { status, page = "1", limit = "50" } = req.query as Record<string, string>;
+    if (!/^\d+$/.test(page) || !/^\d+$/.test(limit) || Number(page) < 1 || Number(limit) < 1 || Number(limit) > 100 || (status && !["PENDING", "SYNCED", "FAILED", "SKIPPED"].includes(status))) return res.status(400).json({ error: { message: "Invalid queue filters or pagination." } });
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const where: Prisma.QBSyncQueueItemWhereInput = status
@@ -527,7 +562,7 @@ router.post("/sync-queue", async (req, res) => {
       return res.status(409).json({
         error: {
           code: "QB_HISTORY_CONFIRMATION_REQUIRED",
-          message: "This donation predates the QuickBooks connection. An admin must use Sync all past history in Settings → Integrations.",
+          message: "This donation predates the QuickBooks connection. An admin must use Sync all past history in the QuickBooks workspace.",
         },
       });
     }
@@ -600,6 +635,7 @@ router.get("/sync-queue/:id", async (req, res) => {
 router.put("/sync-queue/:id", async (req, res) => {
   try {
     const organizationId = await resolveOrg(req);
+    return await withQuickBooksCompanyLock(organizationId, async () => {
     const { customerName, memo, qbAccount, amount } = req.body as {
       customerName?: string;
       memo?: string;
@@ -615,8 +651,10 @@ router.put("/sync-queue/:id", async (req, res) => {
       return res.status(400).json({ error: { code: "INVALID_STATE", message: "Only PENDING or FAILED items can be edited." } });
     }
 
-    const updated = await prisma.qBSyncQueueItem.update({
-      where: { id: req.params.id },
+    if ((amount !== undefined && (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0)) || [customerName, memo, qbAccount].some(value => value !== undefined && (typeof value !== "string" || value.length > 2000))) return res.status(400).json({ error: { message: "Use a positive amount and valid text fields." } });
+    if (existing.attemptCount > 0 && amount !== undefined && Number(existing.amount) !== amount) return res.status(409).json({ error: { message: "An attempted gift's amount cannot change. Retry first to reconcile its QuickBooks receipt." } });
+    const updated = await prisma.qBSyncQueueItem.updateMany({
+      where: { id: req.params.id, organizationId, updatedAt: existing.updatedAt, status: { in: ["PENDING", "FAILED"] } },
       data: {
         ...(customerName !== undefined && { customerName }),
         ...(memo !== undefined && { memo }),
@@ -625,7 +663,9 @@ router.put("/sync-queue/:id", async (req, res) => {
         ...(existing.status === "FAILED" && { status: "PENDING", errorMessage: null }),
       },
     });
-    return res.json({ data: updated });
+    if (updated.count !== 1) return res.status(409).json({ error: { message: "This gift changed. Refresh before editing." } });
+    return res.json({ data: { updated: true } });
+    });
   } catch (err) {
     console.error("[QB] sync-queue PUT error:", err);
     return res.status(500).json({ error: { code: "QB_QUEUE_ERROR", message: "Failed to update queue item." } });
@@ -639,6 +679,7 @@ router.put("/sync-queue/:id", async (req, res) => {
 router.delete("/sync-queue/:id", async (req, res) => {
   try {
     const organizationId = await resolveOrg(req);
+    return await withQuickBooksCompanyLock(organizationId, async () => {
     const existing = await prisma.qBSyncQueueItem.findFirst({
       where: { id: req.params.id, organizationId },
     });
@@ -647,11 +688,13 @@ router.delete("/sync-queue/:id", async (req, res) => {
       return res.status(400).json({ error: { code: "INVALID_STATE", message: "Cannot remove an already-synced item." } });
     }
 
-    await prisma.qBSyncQueueItem.update({
-      where: { id: req.params.id },
+    const removed = await prisma.qBSyncQueueItem.updateMany({
+      where: { id: req.params.id, organizationId, updatedAt: existing.updatedAt, status: { not: "SYNCED" } },
       data: { status: "SKIPPED" },
     });
+    if (removed.count !== 1) return res.status(409).json({ error: { message: "This gift changed. Refresh before removing." } });
     return res.json({ data: { message: "Item removed from queue." } });
+    });
   } catch (err) {
     console.error("[QB] sync-queue DELETE error:", err);
     return res.status(500).json({ error: { code: "QB_QUEUE_ERROR", message: "Failed to remove queue item." } });
@@ -664,7 +707,30 @@ router.delete("/sync-queue/:id", async (req, res) => {
  * Attempts to sync one QBSyncQueueItem to QuickBooks.
  * Updates item status, syncedAt, errorMessage, and attemptCount in DB.
  */
-export async function syncOneQuickBooksItem(
+// Dedicated transactional row lock: released automatically on rollback or process loss.
+// Token refresh and queue writes use the regular client to avoid locking themselves.
+async function withQuickBooksCompanyLock<T>(organizationId: string, action: () => Promise<T>): Promise<T> {
+  await prisma.$executeRaw`INSERT IGNORE INTO QuickBooksSyncMutex (organizationId) VALUES (${organizationId})`;
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT organizationId FROM QuickBooksSyncMutex WHERE organizationId = ${organizationId} FOR UPDATE`;
+    return action();
+  }, { timeout: 300_000, maxWait: 5000 });
+}
+
+export async function syncOneQuickBooksItem(itemId: string, organizationId: string, options: { includePastHistory?: boolean; userId?: string; background?: boolean } = {}): Promise<{ success: boolean; qbEntityId?: string; error?: string }> {
+  return withQuickBooksCompanyLock(organizationId, async () => {
+    const plugin = await getQBPlugin(organizationId);
+    if (!plugin?.enabled || !configRecord(plugin.config).access_token) return { success: false, error: "QuickBooks is disabled or disconnected." };
+    if (options.background && configRecord(plugin.config).qbSendingMode !== "daily") return { success: false, error: "Daily sending is paused." };
+    const existing = await prisma.qBSyncQueueItem.findFirst({ where: { id: itemId, organizationId } });
+    if (existing?.status === "SYNCED") return { success: true, qbEntityId: existing.qbEntityId ?? undefined };
+    const result = await syncOneQuickBooksItemUnlocked(itemId, organizationId, options);
+    await logAudit({ action: result.success ? "QB_SYNCED" : "QB_SYNC_FAILED", entity: "QBSyncQueueItem", entityId: itemId, organizationId, userId: options.userId, metadata: { source: options.userId ? "staff" : options.background ? "daily" : "system", qbEntityId: result.qbEntityId ?? null } });
+    return result;
+  });
+}
+
+async function syncOneQuickBooksItemUnlocked(
   itemId: string,
   organizationId: string,
   options: { includePastHistory?: boolean } = {},
@@ -693,6 +759,9 @@ export async function syncOneQuickBooksItem(
     });
     return { success: false, error: PRE_CONNECTION_EXCLUSION };
   }
+
+  if (!item.donation || item.donation.status !== "COMPLETED") return { success: false, error: "Only completed donations can be sent." };
+  if (!Number.isFinite(Number(item.amount ?? item.donation.amount)) || Number(item.amount ?? item.donation.amount) <= 0) return { success: false, error: "Donation amount must be positive." };
 
   // Increment attempt count before trying
   await prisma.qBSyncQueueItem.update({
@@ -734,7 +803,7 @@ export async function syncOneQuickBooksItem(
 
 async function syncPendingQuickBooksItems(
   organizationId: string,
-  options: { includePastHistory?: boolean } = {},
+  options: { includePastHistory?: boolean; userId?: string } = {},
 ) {
   const pendingItems = await prisma.qBSyncQueueItem.findMany({
     where: { organizationId, status: "PENDING" },
@@ -775,7 +844,7 @@ router.post("/sync-queue/sync-all", async (req, res) => {
     }
 
     const queued = await queueEligibleQuickBooksDonations(organizationId);
-    const result = await syncPendingQuickBooksItems(organizationId);
+    const result = await syncPendingQuickBooksItems(organizationId, { userId: req.user?.sub });
     if (result.total === 0) {
       return res.json({ data: { synced: 0, failed: 0, queued, total: 0, message: "No pending items to sync." } });
     }
@@ -812,7 +881,7 @@ router.post("/sync-queue/sync-history", requireRole("admin"), async (req, res) =
     }
 
     const queued = await queueEligibleQuickBooksDonations(organizationId, { includePastHistory: true });
-    const result = await syncPendingQuickBooksItems(organizationId, { includePastHistory: true });
+    const result = await syncPendingQuickBooksItems(organizationId, { includePastHistory: true, userId: req.user?.sub });
     await logAudit({
       action: "QB_SYNC_ALL_HISTORY",
       entity: "QBSyncQueue",
@@ -845,7 +914,7 @@ router.post("/sync-queue/:id/sync", async (req, res) => {
       return res.status(403).json({ error: { code: "QB_NOT_CONNECTED", message: "QuickBooks not connected." } });
     }
 
-    const result = await syncOneQuickBooksItem(req.params.id, organizationId);
+    const result = await syncOneQuickBooksItem(req.params.id, organizationId, { userId: req.user?.sub });
     if (!result.success) {
       return res.status(422).json({ error: { code: "QB_SYNC_FAILED", message: result.error ?? "Sync failed." } });
     }

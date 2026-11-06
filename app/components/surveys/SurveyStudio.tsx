@@ -143,7 +143,7 @@ export default function SurveyStudio({ id, audience, initialStep, initialRespons
     {error && <p role="alert" className="survey-rule survey-error">{error}</p>}
     {notice && <p role="status" className="survey-rule">{notice}</p>}
     {step === "build" && <SurveyBuilder definition={draft} setDefinition={setDraft} identity={identity} setIdentity={setIdentity}
-      identityLocked={survey.published > 0} editable={editable} />}
+      identityLocked={survey.published > 0} editable={editable} uploadLogo={async image => (await surveyWrite<{ logoUrl: string }>(audience, `${base}/logo`, { image })).logoUrl} organizationLogo={audience === "DONOR" ? async () => (await surveyRequest<{ logoUrl: string }>(audience, `${base}/branding`)).logoUrl : undefined} />}
     {step === "preview" && (validation ? <div className="survey-card survey-stack"><h2>Finish the draft to preview</h2><p role="alert">{validation}</p>
       <div><button className="survey-btn" onClick={() => open("build")}>Back to builder</button></div></div>
       : <SurveyForm key={JSON.stringify(draft)} definition={draft} identity={identity} preview />)}

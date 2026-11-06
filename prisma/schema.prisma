@@ -332,6 +332,7 @@ enum EmailCategory {
   GRANT_SPONSOR_COMMUNICATION
   ADMINISTRATIVE_NOTICE
   PERSONAL_STAFF_EMAIL
+  SURVEY
 }
 
 enum EmailPreferenceStatus {
@@ -2240,6 +2241,7 @@ model SurveyTemplate {
 }
 
 model SurveyDistribution {
+  emailDesign    Json?
   id             String         @id @default(cuid())
   organizationId String
   revisionId     String
@@ -4309,4 +4311,9 @@ model CompassionReportDefinition {
   authorId String
   createdAt DateTime @default(now())
   @@unique([organizationId, version], map: "CompassionReportDefinition_version_key")
+}
+
+// A dedicated row locks company sends without locking token/settings updates.
+model QuickBooksSyncMutex {
+  organizationId String @id
 }

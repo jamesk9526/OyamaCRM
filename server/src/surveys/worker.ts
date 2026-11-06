@@ -1,6 +1,7 @@
+import { parseDefinition } from "./definition.js";
+import { renderSurveyEmail } from "./email.js";
 import { prisma as db } from "../compassion/database.js";
 import type { SurveyAudience } from "@prisma/client";
-import { categoryForPurpose } from "../services/email-compliance.js";
 import { createOrganizationEmailSender, describeOrganizationEmailSender } from "../services/smtp-service.js";
 import { surveyAccess } from "./access.js";
 import { emailDecisions, surveyContacts } from "./contacts.js";
@@ -16,12 +17,7 @@ let running: Promise<void> | undefined;
 let lastCompletedAt: Date | undefined;
 let failed = false;
 
-function html(value: string) {
-  const substitutions: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-  return value.replace(/[&<>"']/g, character => substitutions[character]);
-}
-
-async function donorPreferences(organizationId: string, email: string, contactId: string, origin: string) {
+async function donorPreferences(organizationId: string, email: string, contactId: string | null, origin: string) {
   const subscription = await db.emailSubscription.upsert({
     where: { organizationId_email: { organizationId, email } },
     update: {}, create: { organizationId, email, constituentId: contactId, globalStatus: "UNKNOWN", source: "survey-invitation" },
@@ -29,11 +25,11 @@ async function donorPreferences(organizationId: string, email: string, contactId
   const token = randomToken();
   await db.emailUnsubscribeToken.create({ data: {
     organizationId, email, subscriptionId: subscription.id, tokenHash: digest(token),
-    category: categoryForPurpose("MARKETING"), expiresAt: new Date(Date.now() + 180 * 86400_000),
+    category: "SURVEY", expiresAt: new Date(Date.now() + 180 * 86400_000),
   } });
   return [
-    { label: "Unsubscribe", href: `${origin}/unsubscribe/${token}` },
-    { label: "Manage email preferences", href: `${origin}/preferences/${token}` },
+    { label: "Unsubscribe from surveys", href: `${origin}/unsubscribe/${token}` },
+    { label: "Manage survey preferences", href: `${origin}/preferences/${token}` },
   ];
 }
 
@@ -97,13 +93,14 @@ async function dispatch(jobId: string, organizationId: string) {
       return;
     }
     const links = [{ label: "Open survey", href: `${origin}${surveyPath(token, survey.audience)}` }];
-    if (survey.audience === "DONOR") links.push(...await donorPreferences(organizationId, contact.email, contact.id, origin));
+    if (survey.audience === "DONOR") links.push(...await donorPreferences(organizationId, contact.email, contact.id.startsWith("list:") ? null : contact.id, origin));
     const reminder = survey.identity === "ANONYMOUS"
       ? "This is a reminder. If you already completed the survey, please disregard this message."
       : "This is a reminder that your feedback is still welcome.";
     const message = job.reminder ? `${reminder}\n\n${distribution.message}` : distribution.message;
-    const text = `${message}\n\n${links.map(link => `${link.label}: ${link.href}`).join("\n")}`;
-    const markup = `<p>${html(message).replace(/\r?\n/g, "<br>")}</p>${links.map(link => `<p><a href="${html(link.href)}">${html(link.label)}</a></p>`).join("")}`;
+    const { text, html: markup } = renderSurveyEmail({ message, design: survey.audience === "DONOR" ? distribution.emailDesign : null,
+      appearance: survey.audience === "DONOR" ? parseDefinition(revision.definition).appearance : undefined, name: contact.name, surveyUrl: links[0].href, origin,
+      preferences: links.slice(1), plain: survey.audience === "CLIENT" });
     const current = await db.surveyDeliveryJob.findFirst({ where: { id: job.id, organizationId, status: "SENDING" }, include: jobInclude });
     if (!current || !openSurvey(current.invitation.revision.survey) || current.invitation.revokedAt ||
       current.invitation.completedAt || current.invitation.expiresAt <= new Date()) {

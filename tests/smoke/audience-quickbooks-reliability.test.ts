@@ -62,7 +62,7 @@ describe("audience and QuickBooks reliability", () => {
   it("uses connection time as the default cutoff and requires explicit historical consent", () => {
     const quickbooks = read("server/src/routes/quickbooks.ts");
     const service = read("server/src/services/quickbooksService.ts");
-    const settings = read("app/components/settings/plugins/PluginsSettingsPage.tsx");
+    const settings = read("app/components/quickbooks/QuickBooksSettings.tsx");
     expect(service).toContain("qbConnectedAt");
     expect(quickbooks).toContain("connectionCutoff");
     expect(quickbooks).toContain('router.post("/sync-queue/sync-history"');

@@ -1,9 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { evaluateAnswers, parseDefinition, starterTemplates } from "@/server/src/surveys/definition";
+import { accentText, defaultAppearance, evaluateAnswers, parseDefinition, starterTemplates } from "@/server/src/surveys/definition";
 import { responseSummary, surveyCsvCell } from "@/server/src/surveys/reporting";
+import { renderSurveyEmail } from "@/server/src/surveys/email";
 import { localToIso } from "@/app/components/surveys/client";
 
 describe("survey rules", () => {
+  it("validates survey branding and safely renders personalized invitation content", () => {
+    const definition = parseDefinition({ ...starterTemplates("DONOR")[0].definition, appearance: { ...defaultAppearance, logoUrl: "/api/letters/media/org/logo.png", accentColor: "#ffffff" } }, true);
+    expect(definition.appearance?.logoUrl).toContain("logo.png");
+    expect(accentText("#ffffff")).toBe("#000000");
+    expect(accentText("#000000")).toBe("#ffffff");
+    for (const logoUrl of ["javascript:alert(1)", "//evil.test/a.png", "data:image/svg+xml;base64,PHN2Zz4="]) expect(() => parseDefinition({ ...definition, appearance: { ...definition.appearance, logoUrl } })).toThrow("logo");
+    const email = renderSurveyEmail({ message: "Dear {{name}}, please visit {{survey_link}} <script>bad()</script>", name: "<Sample>", surveyUrl: "https://crm.example.invalid/s/respond#d.sample", origin: "https://crm.example.invalid", appearance: definition.appearance, design: { heading: "Your feedback", buttonLabel: "Share feedback", signature: "Your team" } });
+    expect(email.html).toContain('src="https://crm.example.invalid/api/letters/media/org/logo.png"');
+    expect(email.html).toContain("&lt;Sample&gt;"); expect(email.html).not.toContain("<script>");
+    expect(email.html).toContain("Share feedback"); expect(email.text).toContain("Dear <Sample>");
+  });
   it("validates required questions only on the visible path and ignores forged answers", () => {
     const definition = starterTemplates("CLIENT")[0].definition;
     definition.sections[0].questions[1].required = true;
