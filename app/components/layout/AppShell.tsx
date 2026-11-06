@@ -1,6 +1,8 @@
 "use client";
 
 import DonorWorkspaceTabs from "./DonorWorkspaceTabs";
+import MountainSunLoader from "@/app/components/ui/MountainSunLoader";
+import "./workspace-polish.css";
 import ReleaseBanner from "./ReleaseBanner";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -155,6 +157,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // navigation rail.
   const isShareviewReports = user?.role === "shareview_user" && pathname.startsWith("/reports");
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
+  const [readyForUser, setReadyForUser] = useState<string | null>(null);
   const canPersistOrgShellSettings = user?.role === "admin" || user?.role === "super_admin";
   const updateDonorLayout = useCallback(async (layout: DonorNavigationLayout) => {
     if (typeof window !== "undefined") {
@@ -194,7 +197,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (loading || !user || isCompassion) return;
+    if (!user) { setReadyForUser(null); return; }
+    if (loading || isCompassion) return;
+    const userId = user.id;
     let active = true;
 
     async function loadWorkspaceSettings() {
@@ -202,9 +207,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       if (!active) return;
       const localLayout = readStoredDonorLayout();
       setWorkspaceSettings(localLayout ? { ...settings, donorNavigationLayout: localLayout } : settings);
+      setReadyForUser(userId);
     }
 
-    void loadWorkspaceSettings();
+    void loadWorkspaceSettings().catch(() => {
+      if (active) setReadyForUser(userId);
+    });
     return () => {
       active = false;
     };
@@ -340,15 +348,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   // Loading splash — prevent flash of unauthenticated content
   if (loading || !user) {
-    return (
-      <div className="min-h-[100dvh] crm-page-surface flex items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#0f6cbd] border-t-transparent" />
-      </div>
-    );
+    return <MountainSunLoader fullScreen />;
   }
 
   // Module routes that render their own shell (Events CRM, etc.)
   if (isShellBypass) return <>{children}</>;
+
+  if (readyForUser !== user.id) return <MountainSunLoader fullScreen />;
 
   const donorShellVisible = !isShareviewReports && !isBoard;
   // DonorCRM uses a permanent desktop rail for faster movement between records,
@@ -368,7 +374,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="crm-fonts oyama-reference-shell flex h-[100dvh] min-h-[100svh] flex-col crm-page-surface"
+      className="crm-fonts crm-premium-workspace oyama-reference-shell flex h-[100dvh] min-h-[100svh] flex-col crm-page-surface"
       data-oyama-internal="true"
       data-oyama-sidebar={donorShellVisible ? "true" : "false"}
       style={shellStyle}

@@ -37,13 +37,3 @@
 .donor-reference-task-content,.donor-reference-meeting-content { max-height:230px; overflow:auto; }
 .dashboard-embedded-task { border:0; box-shadow:none; background:transparent; padding:0; }
 @media(max-width:1100px) { .donor-reference-operations { grid-template-columns:minmax(0,1fr); } }
-@media (prefers-reduced-motion: no-preference) {
- .donor-animated-dashboard > section, .donor-animated-dashboard .donor-chart-grid { animation: donor-dashboard-reveal 360ms ease-out both; }
- .donor-animated-dashboard .donor-performance-metrics > * { animation: donor-dashboard-reveal 400ms ease-out both; }
- .donor-animated-dashboard .donor-performance-metrics > :nth-child(2) { animation-delay: 45ms; }
- .donor-animated-dashboard .donor-performance-metrics > :nth-child(3) { animation-delay: 90ms; }
- .donor-animated-dashboard .donor-performance-metrics > :nth-child(4) { animation-delay: 135ms; }
- .donor-animated-dashboard .crm-metric-card { transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
- .donor-animated-dashboard a:hover .crm-metric-card { transform: translateY(-3px); box-shadow: 0 8px 24px #10283f12; }
-}
-@keyframes donor-dashboard-reveal { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }

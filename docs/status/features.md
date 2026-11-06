@@ -1,3 +1,13 @@
+## Workspace interaction polish — 2026-11-05
+
+Donor CRM cards now share quiet layered shadows, short staggered entrances and a two-pixel lift for linked metrics on mouse/trackpad devices. Buttons have small press feedback, consistent keyboard outlines and timed color changes. Navigation, filter controls and priority cards settle with shared timing. Table/metric skeletons use a moving highlight; the mountain loader adds a small indeterminate activity track and a short fade on entry. Effects are scoped to the internal workspace, honor reduced motion and do not animate print output. Existing routes, data, permissions and actions are unchanged.
+
+Verified with synthetic browser API fixtures at desktop and phone widths: metric hover, focus outlines, dashboard focus switching, refresh, reduced motion, print isolation, no page overflow and no uncaught browser errors. Lint and web TypeScript passed. See [verification](audit-artifacts/2026-11-05-workspace-polish/verification.md).
+## Mountain sunrise loading — 2026-11-05
+
+Added a shared SVG loader using the existing Oyama mountain logo geometry and the supplied GIF's blue peaks/golden sun direction. The 2.8-second sunrise loop uses ease-in-out motion, clips the sun behind the mountain base, and becomes still under reduced motion. Workspace authentication/startup settings, initial dashboard data, report route loading and report execution use the loader. It ends with the actual request; no minimum display delay is imposed. Public pages and printed report output retain their existing styling.
+
+Verified at 1440px and 390px with explicitly synthetic browser API fixtures: startup splash, report placeholder, ease-in-out timing, reduced motion, and report error recovery. Focused lint and web TypeScript passed. See [evidence](audit-artifacts/2026-11-05-mountain-loader/verification.md).
 ## OyamaSurveys Guided Studio — 2026-11-05
 
 Status **Partially Working** pending database deployment and live-provider acceptance.

@@ -6,6 +6,7 @@
 
 import "./components/dashboard/dashboard.css";
 import { SlidersHorizontal } from "lucide-react";
+import MountainSunLoader from "./components/ui/MountainSunLoader";
 import { useState } from "react";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
@@ -25,6 +26,10 @@ export default function DashboardPage() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const name = user ? `${user.firstName} ${user.lastName}` : "…";
+
+  if (dashboardState.loading && !dashboardState.summary) {
+    return <MountainSunLoader label="Loading your dashboard…" />;
+  }
 
 
   return (

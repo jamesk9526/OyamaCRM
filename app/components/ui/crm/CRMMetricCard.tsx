@@ -25,7 +25,7 @@ const toneClassName = {
 /** CRMMetricCard keeps KPI cards consistent without owning data fetching. */
 export default function CRMMetricCard({ label, value, icon, helper, tone = "green", loading = false, className = "", href }: CRMMetricCardProps) {
   const card = (
-    <CRMCard className={`crm-metric-card group flex min-h-[5.6rem] items-start gap-2.5 transition duration-150 hover:border-slate-300 hover:shadow-[0_4px_12px_rgba(15,23,42,0.06)] ${className}`} padding="sm">
+    <CRMCard className={`crm-metric-card group flex min-h-[5.6rem] items-start gap-2.5 ${className}`} padding="sm">
       {icon ? (
         <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-1 ${toneClassName[tone]}`}>
           {icon}
@@ -38,5 +38,5 @@ export default function CRMMetricCard({ label, value, icon, helper, tone = "gree
       </div>
     </CRMCard>
   );
-  return href ? <Link href={href} className="block min-w-0 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--crm-accent)]">{card}<span className="sr-only">Open matching records</span></Link> : card;
+  return href ? <Link href={href} className="crm-metric-link block min-w-0 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--crm-accent)]">{card}<span className="sr-only">Open matching records</span></Link> : card;
 }

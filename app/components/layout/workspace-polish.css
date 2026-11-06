@@ -1,0 +1,95 @@
+/* Internal Donor CRM only. Authored documents and print retain their own styling. */
+@media screen {
+  .crm-premium-workspace {
+    --workspace-ease: cubic-bezier(.2, .7, .2, 1);
+    --workspace-fast: 140ms;
+    --workspace-settle: 240ms;
+    --workspace-card-shadow: 0 1px 2px #10283f06, 0 4px 12px #10283f04;
+  }
+
+  .crm-fonts.crm-premium-workspace :is(.crm-card-surface, .donor-reference-widget):not([data-oyama-authored], [data-oyama-authored] *, .event-public-document, .event-public-document *) {
+    box-shadow: var(--workspace-card-shadow);
+  }
+
+  .crm-premium-workspace :is(.donor-button, .oyama-button, .crm-metric-link, .donor-priority-card, .donor-quick-views button, .donor-workspace-nav a, .donor-filter-chip, .oyama-reference-nav-item):focus-visible {
+    outline: 2px solid var(--crm-accent);
+    outline-offset: 3px;
+  }
+
+  .crm-fonts.crm-premium-workspace .crm-metric-link:focus-visible .crm-metric-card {
+    border-color: var(--crm-accent);
+    box-shadow: 0 2px 8px #10283f12;
+  }
+
+  .crm-premium-workspace :is(.donor-button, .oyama-button):is(:disabled, [aria-disabled="true"]) {
+    box-shadow: none;
+    transform: none;
+  }
+
+  .crm-premium-workspace .donor-loading-skeleton {
+    position: relative;
+    overflow: hidden;
+    background-image: none;
+    animation: none;
+  }
+  .crm-premium-workspace .donor-loading-skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 15%, #ffffffa6 50%, transparent 85%);
+    transform: translateX(-100%);
+  }
+}
+
+@media screen and (prefers-reduced-motion: no-preference) {
+  .crm-premium-workspace :is(.crm-card-surface, .donor-reference-widget):not([data-oyama-authored], [data-oyama-authored] *, .event-public-document, .event-public-document *) {
+    transition: border-color var(--workspace-fast) ease, box-shadow var(--workspace-settle) ease, transform var(--workspace-settle) var(--workspace-ease);
+  }
+
+  /* Reveal groups once on mount, without nesting transforms on their cards. */
+  .crm-premium-workspace .donor-animated-dashboard > :is(section, details, .crm-page-header-surface):not(:has(.donor-performance-metrics)),
+  .crm-premium-workspace .donor-performance-metrics > .crm-metric-link {
+    animation: workspace-arrive 360ms var(--workspace-ease) backwards;
+  }
+  .crm-premium-workspace .donor-performance-metrics > :nth-child(2) { animation-delay: 35ms; }
+  .crm-premium-workspace .donor-performance-metrics > :nth-child(3) { animation-delay: 70ms; }
+  .crm-premium-workspace .donor-performance-metrics > :nth-child(4) { animation-delay: 105ms; }
+  .crm-premium-workspace .donor-animated-dashboard > .donor-reference-operations { animation-delay: 90ms; }
+
+  .crm-premium-workspace :is(.donor-button, .oyama-button, .donor-filter-chip, .donor-quick-views button) {
+    transition: background-color var(--workspace-fast) ease, border-color var(--workspace-fast) ease, color var(--workspace-fast) ease, box-shadow var(--workspace-fast) ease, transform var(--workspace-fast) var(--workspace-ease);
+  }
+  .crm-premium-workspace :is(.donor-button, .oyama-button):active:not(:disabled, [aria-disabled="true"]) { transform: translateY(1px); }
+  .crm-premium-workspace :is(.donor-workspace-nav a, .oyama-reference-nav-item) {
+    transition: background-color var(--workspace-fast) ease, color var(--workspace-fast) ease, border-color var(--workspace-fast) ease;
+  }
+  .crm-premium-workspace .crm-filter-surface :is(input, select, textarea) {
+    transition: border-color var(--workspace-fast) ease, box-shadow var(--workspace-fast) ease;
+  }
+  .crm-premium-workspace .donor-priority-card {
+    transition: background-color var(--workspace-fast) ease, border-color var(--workspace-fast) ease, box-shadow var(--workspace-settle) ease;
+  }
+  .crm-premium-workspace .donor-loading-skeleton::after { animation: workspace-shimmer 2s ease-in-out infinite; }
+}
+
+@media screen and (hover: hover) and (pointer: fine) {
+  .crm-fonts.crm-premium-workspace .crm-metric-link:hover .crm-metric-card {
+    border-color: var(--crm-accent);
+    box-shadow: 0 2px 4px #10283f08, 0 6px 16px #10283f0d;
+  }
+  .crm-fonts.crm-premium-workspace :is(.donor-button, .oyama-button):hover:not(:disabled, [aria-disabled="true"]) { box-shadow: 0 2px 5px #10283f10; }
+}
+
+@media screen and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .crm-premium-workspace .crm-metric-link:hover .crm-metric-card { transform: translateY(-2px); }
+  .crm-premium-workspace .crm-metric-link:active .crm-metric-card { transform: translateY(0); }
+}
+
+@keyframes workspace-arrive {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes workspace-shimmer {
+  to { transform: translateX(100%); }
+}

@@ -1,4 +1,5 @@
 "use client";
+import MountainSunLoader from "@/app/components/ui/MountainSunLoader";
 
 import { REPORTS, type ReportDefinition, type ReportKey } from "@/app/features/donor-dashboard/report-catalog";
 
@@ -578,7 +579,7 @@ function FilterField({ label, children }: { label: string; children: React.React
 }
 
 function ReportLoading() {
-  return <div className="p-4"><div className="grid gap-px overflow-hidden rounded border border-slate-300 bg-slate-200">{Array.from({ length: 9 }, (_, index) => <div key={index} className="h-11 animate-pulse bg-white" />)}</div></div>;
+  return <MountainSunLoader label="Preparing your report…" />;
 }
 
 function ReportOutput({ report, displayMode, onGenerateLetters, onPrintStatements }: { report: ReportData; displayMode: "grid" | "visual"; onGenerateLetters: () => void; onPrintStatements: (constituentIds: string[]) => void }) {

@@ -1,3 +1,17 @@
+## Workspace interaction polish — 2026-11-05
+
+- [x] Consolidate dashboard motion and shared card/control feedback in scoped workspace styles.
+- [x] Respect reduced motion, touch devices, disabled controls and screen-only presentation.
+- [x] Verify desktop/phone dashboard focus switching, refresh, keyboard outlines, metric hover, overflow and print isolation with synthetic browser fixtures.
+- [x] Pass focused ESLint and web TypeScript; rerun mountain-loader desktop/mobile checks.
+- [ ] Confirm the visual effects with production data and live authentication after deployment.
+## Mountain sunrise loading — 2026-11-05
+
+- [x] Share the brand loader across workspace startup, initial dashboard data, report navigation and report execution.
+- [x] Use ease-in-out motion, accessible status text, reduced-motion support and scoped styles.
+- [x] Verify desktop/phone rendering, computed animation easing, reduced motion and request failure recovery with synthetic browser fixtures.
+- [x] Pass focused ESLint and web TypeScript checks.
+- [ ] Verify sign-in through the deployed identity provider and report loading with production data; local browser checks use synthetic auth/API responses.
 ## OyamaSurveys Guided Studio — 2026-11-05
 
 - [x] Implement the approved Guided Studio flow with real API persistence paths, server authorization, immutable revisions, link collection, reviewed distributions, reminder jobs, reporting, CSV, and record history.

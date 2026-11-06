@@ -1,0 +1,77 @@
+.loader {
+  display: flex;
+  min-height: 16rem;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 2rem 1rem;
+  color: #12365b;
+}
+
+.fullScreen {
+  min-height: 100dvh;
+  background: #f5f9fd;
+}
+
+.artwork {
+  width: clamp(7rem, 18vw, 10rem);
+  height: auto;
+  overflow: hidden;
+}
+
+.sun {
+  animation: oyama-sunrise 2.8s ease-in-out infinite;
+}
+
+.label {
+  max-width: 100%;
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.track {
+  width: 4rem;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: #dce9f3;
+}
+
+.track::after {
+  content: "";
+  display: block;
+  width: 50%;
+  height: 100%;
+  border-radius: inherit;
+  background: #007bc4;
+  animation: oyama-loading-sweep 1.8s ease-in-out infinite;
+}
+
+@keyframes oyama-loading-sweep {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(210%); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .loader { animation: oyama-loader-arrive 180ms ease-out backwards; }
+}
+
+@keyframes oyama-loader-arrive {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes oyama-sunrise {
+  0%, 100% { transform: translateY(32px); opacity: 0; }
+  15% { opacity: 1; }
+  45%, 65% { transform: translateY(0); opacity: 1; }
+  90% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sun, .track::after { animation: none; }
+}
