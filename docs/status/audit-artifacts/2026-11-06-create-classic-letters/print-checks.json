@@ -1,0 +1,41 @@
+{
+  "synthetic": true,
+  "report": [
+    {
+      "fixture": "short",
+      "pages": 1,
+      "size": {
+        "width": 612,
+        "height": 792
+      },
+      "frozenSha256": "d861cf6bfd0f7c5c8b43199b7f18680216bbd69650ad9e2bb3f27c6895816094"
+    },
+    {
+      "fixture": "household-table",
+      "pages": 3,
+      "size": {
+        "width": 612,
+        "height": 1008
+      },
+      "frozenSha256": "59b89a8ccf01d8c3553167a9a7c269ee99a0462c0c81a2fe266e918f7860d9d7"
+    },
+    {
+      "fixture": "organization",
+      "pages": 1,
+      "size": {
+        "width": 595.28,
+        "height": 841.89
+      },
+      "frozenSha256": "2468d9d5f06728f85977c3db9d1bd0234105ac9b6e0de10268c988f30d050ce0"
+    }
+  ],
+  "labels": {
+    "startPosition": 29,
+    "pages": 2,
+    "recipientOrder": [
+      "Jordan Example",
+      "Alexandra and Cameron Example Extended Family Household",
+      "Community Partners and Neighborhood Outreach Organization"
+    ]
+  }
+}

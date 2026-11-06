@@ -1,4 +1,12 @@
-## Create v5 unified desktop workspace — 2026-11-06
+## Classic Letters pilot in Create v5 — 2026-11-06
+
+The classic Letters canvas is the only Letter authoring surface for pilot organizations and saved classic drafts. It opens in the v5 workspace with native rulers, formatting, merge tools, and recipient proofs. Create saves a separate working copy and retains original names, accepted snapshots, and source comparison. Standalone Letters and Email remain available.
+
+Convert a saved Letter into a draft for Email, Web, Social, or SMS. Staff select changes and can retain customized channel content. A newly added format starts outside delivery. The print pipeline uses the classic renderer for native letters and the retained Chromium layout for advanced Studio drafts. Proofs, exports, and batch artifacts use the selected renderer and frozen data. Release labels follow the same recipient order as the print pack.
+
+The pilot is opt-in under Create → Settings → Workspace rollout. See the [capability matrix](../plans/oyama-create-v5-capabilities.md) and [verification](audit-artifacts/2026-11-06-create-classic-letters/verification.md).
+
+## Create v5 unified desktop workspace baseline — 2026-11-06
 
 Implemented the supplied v5 layout behind separate organization shell/unified-editor controls: pinned title/workbar/ribbon/status, independently scrolling navigator/canvas/inspector, pointer/keyboard dock resizing, per-user device layout preferences, command search, focus, contextual panels and responsive overlays. All existing Create destinations remain reachable. Quick starts create named, brand-pinned drafts without recipients or delivery. Campaign content selection/settings remain available from the editor.
 
@@ -6,9 +14,9 @@ The installed Tiptap editor now reads v2/v3/v4 documents and serves all five for
 
 The additive migration and real-content rollout remain required. Standalone legacy routes are retained. Synthetic PDFs do not establish equivalence with the old jsPDF renderer or physical printer output. See [implementation and rollback](../plans/oyama-create-v5-implementation.md), [all 184 capability mappings](../plans/oyama-create-v5-capabilities.md) and [verification](audit-artifacts/2026-11-06-create-v5/verification.md).
 
-## Original Letters canvas inside Create — 2026-11-05
+## Original Letters canvas compatibility baseline — 2026-11-05
 
-Imported letter content now opens with the original OyamaCRM Letters canvas/editor inside Create. This reuses the actual legacy component and its existing recipient preview, PDF/export, formatting, merge tools and local recovery. Staff can switch back to upgraded Studio; pending edits are flushed first. Original saves refresh the source binding and require the existing comparison/reconciliation process before Studio output uses changed source content. Historical/read-only campaigns stay in the protected Studio view. New Studio content continues using the upgraded builder.
+This baseline embedded the original Letters canvas for imported content and added original-source comparison. The classic Letters pilot above replaces the dual-editor flow and original-template writes inside Create.
 
 Create now resolves the full canonical old Letters merge catalog and its aliases alongside new donor fields, with organization greetings, contacts/households, gift campaign/payment metadata, selected-period tax totals, dates, organization and signer values. The legacy field picker and structured donor-field picker expose compatible fields. Saved global header/footer HTML, selected presets and selected signer are retained in source snapshots; safe header layout styling is preserved rather than passed through the narrower frozen-PDF sanitizer. Missing context and sensitive-data restrictions remain validated.
 

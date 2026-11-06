@@ -8,7 +8,7 @@ import { nativeRecord, emailRecordSharing } from "../legacy.js";
 import { CreateError, documentFrom, publicCopySafe, variantFrom, type Channel, type PlannedRecipient } from "../domain.js";
 import type { FrozenContent, FrozenVariant } from "../releases.js";
 import type { LetterSnapshot } from "../../services/letter-production-contract.js";
-import { normalizeDesign, emailReviewRequired, walkNodes } from "./design.js";
+import { defaultDesign, normalizeDesign, emailReviewRequired, walkNodes } from "./design.js";
 import { hydrateSourceHtml } from "./source-html.js";
 import { renderChannel } from "./channel-render.js";
 import { brandForStudio } from "./brand-service.js";
@@ -19,17 +19,17 @@ import { freezeStudioPrint } from "./print.js";
 import { managedAssetIssues } from "./asset-files.js";
 import type { BrandDocument, StudioDesign, ArtifactKind } from "./types.js";
 export type FrozenStudio = { design: StudioDesign; brand: BrandDocument; templateId: string; channelBrands?: Partial<Record<Channel,BrandDocument>> };
-export async function prepareStudioRelease(req: Request, campaign: CreateCampaign, content: CreateContent & { variants: CreateVariant[] }, recipients: PlannedRecipient[]) {
+export async function prepareStudioRelease(req: Request, campaign: CreateCampaign, content: CreateContent & { variants: CreateVariant[] }, recipients: PlannedRecipient[], classicLetter = false) {
   const design = await hydrateSourceHtml(req,campaign.organizationId,normalizeDesign(content.designJson)), brand = await brandForStudio(campaign.organizationId, design), issues: Array<{channel:string;message:string}> = [];
   if(design.version===4&&(campaign.channelsJson as string[]).includes("LETTER")){
     const fonts=await printFontAssets(design,(["firstHeader","header","firstFooter","footer"] as const).map(key=>renderRegion(design,emptyDonor(),brand,key)));
     issues.push(...fonts.issues.map(issue=>({channel:"LETTER",message:issue.message})));
   }
-  if (designSensitive(design)) await demand(req, "letters.view_sensitive_merge_data");
+  if (classicLetter ? (campaign.channelsJson as Channel[]).includes("EMAIL") && designSensitive({ ...design, body: design.channels?.EMAIL?.document || design.body, channels: undefined, pack: { ...design.pack, replySlip: { ...design.pack.replySlip, content: { type: "doc", content: [] } } }, regions: defaultDesign().regions }) : designSensitive(design)) await demand(req, "letters.view_sensitive_merge_data");
   if (recipients.length > 1500) throw new CreateError(422, "Studio releases support up to 1,500 channel deliveries per content piece. Split a larger audience into reviewed releases.");
-  if (walkNodes(design.body).some(node=>node.type==="studioLegacy")) issues.push({channel:"ALL",message:`${content.name}: review the preserved original's structured conversion.`});
+  if (!classicLetter && walkNodes(design.body).some(node=>node.type==="studioLegacy")) issues.push({channel:"ALL",message:`${content.name}: review the preserved original's structured conversion.`});
   const letter = content.variants.find(item=>item.channel==="LETTER"), native = letter ? await nativeRecord(campaign.organizationId,letter,prisma,true) : null;
-  const pendingImports=await prisma.createImportSource.findMany({where:{organizationId:campaign.organizationId,contentId:content.id,status:{in:["NEEDS_REVIEW","SOURCE_CHANGED","FAILED"]}}});
+  const pendingImports=await prisma.createImportSource.findMany({where:{organizationId:campaign.organizationId,contentId:content.id,...(classicLetter?{sourceType:{not:"LETTER"}}:{}),status:{in:["NEEDS_REVIEW","SOURCE_CHANGED","FAILED"]}}});
   for(const source of pendingImports)issues.push({channel:"ALL",message:`${source.name}: review its imported conversion or legacy changes before release.`});
   if((campaign.channelsJson as string[]).includes("LETTER")&&native?.kind!=="LETTER")issues.push({channel:"LETTER",message:"Use this retained letter as a new draft to create its print template before approval."});
   const settings = await prisma.organizationSettings.findUnique({where:{organizationId:campaign.organizationId}});
@@ -40,10 +40,12 @@ export async function prepareStudioRelease(req: Request, campaign: CreateCampaig
     const source=content.variants.find(item=>item.channel===channel);if(source&&variantFrom(source.documentJson).enabled===false)continue;if(!source){issues.push({channel,message:"Channel version is missing."});continue;}
     const format=variantFrom(source.documentJson), channelBrand=await brandForStudio(campaign.organizationId,design,channel);channelBrands[channel]=channelBrand;
     const rendered=renderChannel(design,emptyDonor(),channelBrand,channel,format);
+    if (source.letterAdaptationJson && !rendered.text.trim() && !/<img\b/i.test(rendered.html)) issues.push({ channel, message: "Add copy for this converted format before approval." });
     rendered.issues.push(...await managedAssetIssues(campaign.organizationId,rendered.html,assetCache));
     const bound=await nativeRecord(campaign.organizationId,source,prisma,true);
     if(bound&&bound.fingerprint!==source.legacyFingerprint)issues.push({channel,message:"The legacy source was edited separately. Review and reconcile its changes before this release."});
-    const version:FrozenVariant={channel,revision:source.revision,format,html:rendered.html,text:rendered.text,nativeFingerprint:bound?.fingerprint||null};
+    const deliveryFormat = (channel === "SMS" || channel === "SOCIAL") && design.version === 4 && design.channels?.[channel] ? { ...format, caption: rendered.text } : format;
+    const version:FrozenVariant={channel,revision:source.revision,format:deliveryFormat,html:rendered.html,text:rendered.text,nativeFingerprint:bound?.fingerprint||null};
     if(channel==="EMAIL"){
       if(!design.channels?.EMAIL&&emailReviewRequired(design))issues.push({channel,message:"Review customized email blocks against the latest letter design."});
       const email=bound?.kind==="EMAIL"?bound.record:null;

@@ -20,7 +20,7 @@ export async function nativeRecord(org: string, variant: Pick<CreateVariant, "ch
   }
   return null;
 }
-export async function nativeChanged(org: string, variant: CreateVariant) {
+export async function nativeChanged(org: string, variant: Pick<CreateVariant, "channel" | "legacyId" | "legacyFingerprint">) {
   const native = await nativeRecord(org, variant);
   return !!native && native.fingerprint !== variant.legacyFingerprint;
 }

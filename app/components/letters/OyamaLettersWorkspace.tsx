@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type DragEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type SetStateAction } from "react";
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type DragEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject, type SetStateAction } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import WorkspaceProductBar from "@/app/components/layout/WorkspaceProductBar";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
@@ -12,11 +12,16 @@ import { formatDonationDate } from "@/app/components/donations/donation-utils";
 import { InfoTooltip, WorkspaceHint } from "@/app/components/workspace/WorkspaceHelp";
 import LetterPage from "@/app/components/letters/LetterPage";
 import { openPdfPrintView } from "@/app/components/letters/pdf-print";
+import { CLASSIC_PAPERS, type ClassicCrmBlock, type ClassicLetterAdvanced, type ClassicLetterResponse, type ClassicLetterSettings } from "@/server/src/oyama-create/classic-letter-contract";
+import { newBlock } from "@/server/src/oyama-create/studio/registry";
+import { sanitizeStudioHtml } from "@/server/src/oyama-create/studio/html";
+import ClassicLetterProperties from "@/app/components/oyama-create/ClassicLetterProperties";
 import MatchingLabelsDownload from "@/app/components/letters/MatchingLabelsDownload";
 import MailMergeLabelsWorkspace from "@/app/components/letters/MailMergeLabelsWorkspace";
 import QRCode from "qrcode";
 import "./letter-proof-layout.css";
 import ProductionBuilder from "./production/ProductionBuilder";
+import LetterProofViewer from "./production/LetterProofViewer";
 import { PanelLeftClose, PanelLeftOpen, Search, SlidersHorizontal, RefreshCw, Upload, Plus, LayoutGrid, List, FileText, ArrowUpRight, Download, CircleHelp, X, CheckCircle2, PenLine, Archive } from "lucide-react";
 import "./letters-workspace.css";
 import DeleteLetterButton from "./DeleteLetterButton";
@@ -401,6 +406,60 @@ interface TemplateDraft {
   printLayoutJson: unknown | null;
 }
 
+export type CreateLetterSurface = {
+  canvas: ReactNode;
+  blocks: ReactNode;
+  fields: ReactNode;
+  pageInspector: ReactNode;
+  blockInspector: ReactNode;
+  dialogs: ReactNode;
+  alerts: ReactNode;
+  toolbar: (tab: string) => ReactNode;
+  recipientControls: ReactNode;
+  saved: boolean;
+  dirty: boolean;
+  saving: boolean;
+  save: () => Promise<boolean>;
+  flush: () => Promise<boolean>;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  preview: (pack?: boolean) => void;
+  jumpToPage: (page: number) => void;
+  newPage: () => void;
+  html: string;
+  applyHtml: (html: string) => void;
+  page: import("@/server/src/oyama-create/studio/types").StudioPage;
+  pages: number;
+  words: number;
+  zoom: number;
+  fittedZoom: number;
+  setZoom: (zoom: number) => void;
+};
+type CreateLetterBinding = {
+  contentId: string;
+  recoveryKey: string;
+  revision: number;
+  campaignRevision: number;
+  active: boolean;
+  readonly: boolean;
+  onSaved: () => Promise<unknown>;
+  surfaceRef: RefObject<CreateLetterSurface | null>;
+  render: (surface: CreateLetterSurface) => ReactNode;
+};
+
+function CreateLetterLayout({ binding, surface }: { binding: CreateLetterBinding; surface: CreateLetterSurface }) {
+  useImperativeHandle(binding.surfaceRef, () => surface, [surface]);
+  return <>{binding.render(surface)}</>;
+}
+
+type CreateRecovery = { revision: number; letterRevision: number; draft: TemplateDraft; settings: ClassicLetterSettings | null; advanced: ClassicLetterAdvanced | null };
+function readCreateLetterRecovery(key?: string): CreateRecovery | null {
+  if (!key) return null;
+  try { return JSON.parse(sessionStorage.getItem(key) || "null") as CreateRecovery | null; } catch { return null; }
+}
+
 interface TableBuilderDraft {
   rows: number;
   columns: number;
@@ -466,7 +525,7 @@ const EMPTY_DRAFT: TemplateDraft = {
   printLayoutJson: null,
 };
 
-type LetterPageSize = "Letter (8.5 x 11 in)" | "Legal (8.5 x 14 in)" | "A4 (8.27 x 11.69 in)";
+type LetterPageSize = typeof CLASSIC_PAPERS[keyof typeof CLASSIC_PAPERS];
 type LetterMargins = { top: number; bottom: number; left: number; right: number };
 
 const DEFAULT_LETTER_PAGE_SIZE: LetterPageSize = "Letter (8.5 x 11 in)";
@@ -481,26 +540,25 @@ function asSavedMargin(value: unknown, fallback: number): number {
   return Number.isFinite(parsed) ? Math.min(1.5, Math.max(0.125, parsed)) : fallback;
 }
 
-function readLetterPdfLayout(value: unknown): { pageSize: LetterPageSize; margins: LetterMargins } {
+function readLetterPdfLayout(value: unknown): { pageSize: LetterPageSize; margins: LetterMargins; orientation: "portrait" | "landscape" } {
   const root = asPlainRecord(value);
-  const layout = asPlainRecord(root.letterPdfLayout);
-  const rawPageSize = String(layout.pageSize ?? "");
-  const pageSize: LetterPageSize = rawPageSize === "Legal (8.5 x 14 in)" || rawPageSize === "A4 (8.27 x 11.69 in)"
-    ? rawPageSize
-    : DEFAULT_LETTER_PAGE_SIZE;
+  const saved = asPlainRecord(root.letterPdfLayout), layout = Object.keys(saved).length ? saved : root;
+  const rawPageSize = String(layout.pageSize ?? layout.format ?? "").toLowerCase();
+  const pageSize = rawPageSize.includes("legal") ? CLASSIC_PAPERS.LEGAL : rawPageSize.includes("a4") ? CLASSIC_PAPERS.A4 : rawPageSize.includes("half") ? CLASSIC_PAPERS.HALF_LETTER : DEFAULT_LETTER_PAGE_SIZE;
   const rawMargins = asPlainRecord(layout.margins);
   return {
     pageSize,
+    orientation: layout.orientation === "landscape" ? "landscape" : "portrait",
     margins: {
-      top: asSavedMargin(rawMargins.top, DEFAULT_LETTER_MARGINS.top),
-      bottom: asSavedMargin(rawMargins.bottom, DEFAULT_LETTER_MARGINS.bottom),
-      left: asSavedMargin(rawMargins.left, DEFAULT_LETTER_MARGINS.left),
-      right: asSavedMargin(rawMargins.right, DEFAULT_LETTER_MARGINS.right),
+      top: asSavedMargin(rawMargins.top ?? layout.marginTop, DEFAULT_LETTER_MARGINS.top),
+      bottom: asSavedMargin(rawMargins.bottom ?? layout.marginBottom, DEFAULT_LETTER_MARGINS.bottom),
+      left: asSavedMargin(rawMargins.left ?? layout.marginLeft, DEFAULT_LETTER_MARGINS.left),
+      right: asSavedMargin(rawMargins.right ?? layout.marginRight, DEFAULT_LETTER_MARGINS.right),
     },
   };
 }
 
-function withLetterPdfLayout(value: unknown, pageSize: LetterPageSize, margins: LetterMargins): Record<string, unknown> {
+function withLetterPdfLayout(value: unknown, pageSize: LetterPageSize, margins: LetterMargins, orientation?: "portrait" | "landscape"): Record<string, unknown> {
   const root = asPlainRecord(value);
   return {
     ...root,
@@ -509,6 +567,7 @@ function withLetterPdfLayout(value: unknown, pageSize: LetterPageSize, margins: 
       version: 1,
       pageSize,
       margins,
+      ...(orientation ? { orientation } : {}),
     },
   };
 }
@@ -1219,10 +1278,11 @@ function TemplateLibrary() {
   );
 }
 
-function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: string; onEditorState?: OyamaLettersWorkspaceProps["onEditorState"]; onSaved?: () => Promise<unknown> }) {
+export function TemplateBuilder({ templateId, onEditorState, onSaved, create }: { templateId?: string; onEditorState?: OyamaLettersWorkspaceProps["onEditorState"]; onSaved?: () => Promise<unknown>; create?: CreateLetterBinding }) {
   const router = useRouter();
   const editorRef = useRef<HTMLDivElement | null>(null);
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
+  const proofViewportRef = useRef<HTMLElement | null>(null);
   const [canvasWidth, setCanvasWidth] = useState(0);
   const [fitCanvas, setFitCanvas] = useState(true);
   const previewBodyRef = useRef<HTMLDivElement | null>(null);
@@ -1231,6 +1291,19 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const selectedEditorImageRef = useRef<HTMLImageElement | null>(null);
   const [draft, setDraft] = useState<TemplateDraft>(EMPTY_DRAFT);
+  const createEndpoint = create ? `/api/oyama-create/contents/${create.contentId}/letter` : undefined;
+  const createRecoveryKey = create?.recoveryKey;
+  const createReadonly = create?.readonly === true;
+  const [createState, setCreateState] = useState<ClassicLetterResponse | null>(null);
+  const [createSettings, setCreateSettings] = useState<ClassicLetterSettings | null>(null);
+  const [createAdvanced, setCreateAdvanced] = useState<ClassicLetterAdvanced | null>(null);
+  const [proofWarnings, setProofWarnings] = useState<string[]>([]);
+  const [proofPage, setProofPage] = useState(1);
+  const [proofGift, setProofGift] = useState("");
+  const [proofGifts, setProofGifts] = useState<Array<{ id: string; date: string; amount: number }>>([]);
+  const [proofKind, setProofKind] = useState<"LETTER" | "ALL">("LETTER");
+  const [confirmComparison, setConfirmComparison] = useState(false);
+  const [orientation, setOrientation] = useState<"portrait" | "landscape">("portrait");
   const [mergeSections, setMergeSections] = useState<MergeFieldSection[]>([]);
   const [validationMergeFields, setValidationMergeFields] = useState<string[]>([]);
   const [signatures, setSignatures] = useState<SignatureBlock[]>([]);
@@ -1242,6 +1315,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
   const [mobileBuilderPanel, setMobileBuilderPanel] = useState<"write" | "blocks" | "settings">("write");
   const [inspectorTab, setInspectorTab] = useState<"Document" | "Merge Fields" | "Block Settings">("Document");
   function openInspector(tab: "Document" | "Merge Fields" | "Block Settings") {
+    if (createEndpoint) window.dispatchEvent(new CustomEvent("create-letter-pane", { detail: tab }));
     setInspectorTab(tab);
     setMobileBuilderPanel("settings");
   }
@@ -1277,7 +1351,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
   const [history, setHistory] = useState<string[]>([]);
   const [future, setFuture] = useState<string[]>([]);
   const [savedDraft, setSavedDraft] = useState<TemplateDraft>(EMPTY_DRAFT);
-  const [loading, setLoading] = useState(Boolean(templateId));
+  const [loading, setLoading] = useState(Boolean(templateId || createEndpoint));
   const [saving, setSaving] = useState(false);
   const saveInFlight = useRef(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -1341,14 +1415,14 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
 
   const load = useCallback(async () => {
     setError(null);
-    setLoading(Boolean(templateId));
+    setLoading(Boolean(templateId || createEndpoint));
     try {
       const [fields, signatureRows, headerRows, brandingRow, constituentRows] = await Promise.all([
         apiFetch<MergeFieldCatalogResponse>("/api/letters/merge-fields"),
         apiFetch<SignatureBlock[]>("/api/letters/signatures"),
         apiFetch<HeaderPreset[]>("/api/letters/header-presets"),
         apiFetch<BrandingSettings>("/api/settings/branding"),
-        apiFetch<ConstituentLookup[]>("/api/constituents?limit=all").catch(() => []),
+        createEndpoint ? Promise.resolve([]) : apiFetch<ConstituentLookup[]>("/api/constituents?limit=all").catch(() => []),
       ]);
       setMergeSections(fields.sections ?? []);
       setValidationMergeFields(fields.validationFields ?? fields.sections?.flatMap((section) => section.fields) ?? []);
@@ -1358,7 +1432,27 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
       setConstituents(constituentRows);
       setTestConstituentId((current) => current || constituentRows.find((item) => !item.doNotMail)?.id || constituentRows[0]?.id || "");
 
-      if (templateId) {
+      if (createEndpoint) {
+        const opened = await apiFetch<ClassicLetterResponse>(createEndpoint);
+        const serverDraft = opened.template;
+        const recovery = readCreateLetterRecovery(createRecoveryKey);
+        const recoverable = recovery?.letterRevision === opened.letterRevision && recovery.revision === opened.revision;
+        const activeDraft = recoverable ? { ...recovery.draft, printBody: sanitizeStudioHtml(recovery.draft.printBody, true) } : serverDraft;
+        const layout = readLetterPdfLayout(activeDraft.printLayoutJson);
+        setCreateState(opened);
+        setCreateSettings(recoverable ? recovery.settings : opened.settings);
+        setCreateAdvanced(recoverable ? recovery.advanced : opened.advanced);
+        setDraft(activeDraft);
+        setSavedDraft(serverDraft);
+        setPageSize(layout.pageSize); setOrientation(layout.orientation); setMargins(layout.margins);
+        setBranding(current => ({
+          ...current, logoUrl: opened.logoUrl, logoSquareUrl: "", organizationDisplayName: opened.brandName,
+          defaultLetterSignerName: opened.signature?.name || "", defaultLetterSignerTitle: opened.signature?.title || "",
+          defaultLetterSignatureImageUrl: opened.signature?.imageUrl || "", defaultLetterClosingPhrase: opened.signature?.closing || "",
+          globalFooterHtml: opened.settings.footerHtml,
+        }));
+        if (recovery) setNotice(recoverable ? "Recovered unsaved Create Letter changes." : "A local recovery copy is available from an older revision.");
+      } else if (templateId) {
         const [template, preflightResult] = await Promise.all([
           apiFetch<LetterTemplateDetail>(`/api/letters/templates/${templateId}`),
           apiFetch<PublishValidationResult>(`/api/letters/templates/${templateId}/publish`, {
@@ -1395,6 +1489,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
         const savedLayout = readLetterPdfLayout(activeDraft.printLayoutJson);
         setDraft(activeDraft);
         setPageSize(savedLayout.pageSize);
+        setOrientation(savedLayout.orientation);
         setMargins(savedLayout.margins);
         setSavedDraft(serverDraft);
         setSaveFailure(localRecovery?.lastError ?? null);
@@ -1411,6 +1506,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
         const savedLayout = readLetterPdfLayout(activeDraft.printLayoutJson);
         setDraft(activeDraft);
         setPageSize(savedLayout.pageSize);
+        setOrientation(savedLayout.orientation);
         setMargins(savedLayout.margins);
         setSavedDraft(EMPTY_DRAFT);
         setSaveFailure(localRecovery?.lastError ?? null);
@@ -1425,11 +1521,32 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
     } finally {
       setLoading(false);
     }
-  }, [templateId, setTestConstituentId]);
+  }, [templateId, createEndpoint, createRecoveryKey, setTestConstituentId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!createEndpoint || !testConstituentLookupOpen) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => void apiFetch<ConstituentLookup[]>(`${createEndpoint}/recipients?q=${encodeURIComponent(testConstituentSearch)}`, { signal: controller.signal })
+      .then(rows => { if (!controller.signal.aborted) setConstituents(current => {
+        const selected = current.find(row => row.id === testConstituentId);
+        return selected && !rows.some(row => row.id === selected.id) ? [selected, ...rows] : rows;
+      }); })
+      .catch(() => {}), 180);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [createEndpoint, testConstituentLookupOpen, testConstituentSearch, testConstituentId]);
+
+  useEffect(() => {
+    if (!createEndpoint || !testConstituentId) return;
+    const controller = new AbortController();
+    void apiFetch<Array<{ id: string; date: string; amount: number }>>(`/api/oyama-create/studio/recipients/${testConstituentId}/gifts`, { signal: controller.signal })
+      .then(rows => { if (!controller.signal.aborted) setProofGifts(rows); })
+      .catch(() => { if (!controller.signal.aborted) setProofGifts([]); });
+    return () => controller.abort();
+  }, [createEndpoint, testConstituentId]);
 
   useEffect(() => {
     const viewport = canvasViewportRef.current;
@@ -1501,6 +1618,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
       printBody: typeof document === "undefined" ? snapshot.printBody : (() => { const element = document.createElement("div"); element.innerHTML = snapshot.printBody || "<p></p>"; return element.innerHTML; })(),
       printLayoutJson: snapshot.printLayoutJson,
       signatureBlockId: snapshot.signatureBlockId,
+      ...(createEndpoint ? { settings: createSettings, advanced: createAdvanced, gift: proofGift } : {}),
     });
   }
 
@@ -1508,8 +1626,12 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
     setPageSize(nextPageSize);
     setDraft((current) => ({
       ...current,
-      printLayoutJson: withLetterPdfLayout(current.printLayoutJson, nextPageSize, margins),
+      printLayoutJson: withLetterPdfLayout(current.printLayoutJson, nextPageSize, margins, createEndpoint ? orientation : undefined),
     }));
+    if (createAdvanced) {
+      const paper = (Object.keys(CLASSIC_PAPERS) as Array<keyof typeof CLASSIC_PAPERS>).find(key => CLASSIC_PAPERS[key] === nextPageSize) || "LETTER";
+      setCreateAdvanced({ ...createAdvanced, page: { ...createAdvanced.page, paper } });
+    }
   }
 
   function updateMargins(update: Partial<LetterMargins>) {
@@ -1517,13 +1639,20 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
     setMargins(nextMargins);
     setDraft((current) => ({
       ...current,
-      printLayoutJson: withLetterPdfLayout(current.printLayoutJson, pageSize, nextMargins),
+      printLayoutJson: withLetterPdfLayout(current.printLayoutJson, pageSize, nextMargins, createEndpoint ? orientation : undefined),
     }));
+    if (createAdvanced) setCreateAdvanced({ ...createAdvanced, page: { ...createAdvanced.page, margins: nextMargins } });
   }
 
-  async function openServerPdfPreview(targetConstituentId = testConstituentId, openDialog = true) {
+  function updateOrientation(value: "portrait" | "landscape") {
+    setOrientation(value);
+    setDraft(current => ({ ...current, printLayoutJson: withLetterPdfLayout(current.printLayoutJson, pageSize, margins, value) }));
+    if (createAdvanced) setCreateAdvanced({ ...createAdvanced, page: { ...createAdvanced.page, orientation: value } });
+  }
+
+  async function openServerPdfPreview(targetConstituentId = testConstituentId, openDialog = true, kind: "LETTER" | "ALL" = "LETTER", gift = proofGift) {
     if (editorPdfAbortRef.current) return;
-    if (!targetConstituentId) {
+    if (!targetConstituentId && !createEndpoint) {
       setTestConstituentLookupOpen(true);
       setEditorPdfError("Choose a test constituent before rendering the live PDF preview.");
       return;
@@ -1535,14 +1664,18 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
     setEditorPdfLoading(true);
     setEditorPdfError(null);
     try {
-      const activeTemplateId = templateId || await save();
+      const activeTemplateId = createEndpoint ? create?.contentId : templateId || await save();
       if (!activeTemplateId) return;
       const previewDraft = currentDraftSnapshot();
       const previewFingerprint = pdfPreviewFingerprint(previewDraft, targetConstituentId);
-      const response = await apiFetchResponse(`/api/letters/templates/${encodeURIComponent(activeTemplateId)}/sample-pdf?preview=1&inline=1`, {
+      const response = await apiFetchResponse(createEndpoint ? `${createEndpoint}/proof` : `/api/letters/templates/${encodeURIComponent(activeTemplateId)}/sample-pdf?preview=1&inline=1`, {
         method: "POST",
         signal: controller.signal,
-        body: JSON.stringify({
+        body: JSON.stringify(createEndpoint ? {
+          constituentId: targetConstituentId || undefined, donationId: gift || undefined, kind,
+          revision: createState?.revision, letterRevision: createState?.letterRevision,
+          ...(!createReadonly ? { template: previewDraft, settings: createSettings, advanced: createAdvanced } : {}),
+        } : {
           constituentId: targetConstituentId,
           draft: previewDraft,
         }),
@@ -1555,7 +1688,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
       if (pdfBlob.size === 0) throw new Error("Server PDF preview returned an empty file.");
       const { PDFDocument } = await import("pdf-lib");
       const renderedPdf = await PDFDocument.load(await pdfBlob.arrayBuffer());
-      setEditorPdfPageCount(renderedPdf.getPageCount());
+      if (kind === "LETTER") setEditorPdfPageCount(renderedPdf.getPageCount());
       const objectUrl = URL.createObjectURL(pdfBlob);
       const selected = constituents.find((item) => item.id === targetConstituentId);
       setEditorPdfUrl((previous) => {
@@ -1564,8 +1697,11 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
       });
       setEditorPdfFileName(readEditorPdfFileName(response, `${sanitizeClientFileName(draft.name || "letter-template")}_preview.pdf`));
       setEditorPdfTitle(`Live PDF Preview${selected ? ` - ${personName(selected)}` : ""}`);
+      setProofKind(kind); setProofPage(1);
+      const warnings = response.headers.get("x-classic-warnings");
+      setProofWarnings(warnings ? JSON.parse(decodeURIComponent(warnings)) : []);
       setEditorPdfFingerprint(previewFingerprint);
-      if (openDialog) setEditorPdfOpen(true);
+      if (openDialog && (!createEndpoint || kind === "ALL" || (proofViewportRef.current?.clientWidth ?? 0) < 980)) setEditorPdfOpen(true);
       setTestConstituentLookupOpen(false);
       setNotice("Server-rendered PDF preview refreshed.");
     } catch (requestError) {
@@ -1586,7 +1722,8 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
     }
   }
 
-  async function save(nextStatus?: TemplateStatus) {
+  async function save(nextStatus?: TemplateStatus, enableAdvanced = false) {
+    if (createReadonly) return null;
     if (saveInFlight.current) return null;
     saveInFlight.current = true;
     const payload: TemplateDraft = { ...currentDraftSnapshot(), status: nextStatus ?? draft.status };
@@ -1594,9 +1731,26 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
     setError(null);
     setSaveFailure(null);
     try {
+      if (createEndpoint && !createState) throw new Error("Load the Create draft before saving.");
       if (!payload.name.trim()) throw new Error("Template name is required.");
-      if (!payload.printBody.trim()) throw new Error("Template body is required.");
-      if (templateId) {
+      if (!payload.printBody.trim() && !createEndpoint) throw new Error("Template body is required.");
+      if (createEndpoint && createState) {
+        const updated = await apiFetch<ClassicLetterResponse>(createEndpoint, {
+          method: "PUT", body: JSON.stringify({ template: payload, settings: createSettings, advanced: createAdvanced,
+            revision: createState.revision, campaignRevision: createState.campaignRevision, letterRevision: createState.letterRevision,
+            confirmComparison: confirmComparison && !!editorPdfUrl && !editorPdfStale, enableAdvanced }),
+        });
+        setCreateState(updated);
+        setSavedDraft(updated.template);
+        setDraft(current => draftDiffers(current, payload) ? current : updated.template);
+        setCreateSettings(current => JSON.stringify(current) === JSON.stringify(createSettings) ? updated.settings : current);
+        setCreateAdvanced(current => JSON.stringify(current) === JSON.stringify(createAdvanced) ? updated.advanced : current);
+        setConfirmComparison(false);
+        try { if (createRecoveryKey) sessionStorage.removeItem(createRecoveryKey); } catch { /* Draft remains on the server. */ }
+        setNotice("Letter saved in Create.");
+        await create?.onSaved();
+        return create?.contentId || null;
+      } else if (templateId) {
         await apiFetch(`/api/letters/templates/${templateId}`, { method: "PATCH", body: JSON.stringify(payload) });
         setDraft((current) => ({ ...current, status: payload.status }));
         setSavedDraft(payload);
@@ -1611,7 +1765,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
       return created.id;
     } catch (requestError) {
       const message = errorMessage(requestError, "Failed to save template.");
-      writeTemplateRecoverySnapshot(templateId ?? null, payload, message);
+      if (!createEndpoint) writeTemplateRecoverySnapshot(templateId ?? null, payload, message);
       setSaveFailure(message);
       setError(`${message} Local recovery was saved; your edits are still available.`);
       return null;
@@ -1803,9 +1957,22 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
 
   function syncEditorContent() {
     const html = editorRef.current?.innerHTML ?? "";
+    if (createEndpoint && html !== draft.printBody) {
+      setHistory(current => [...current.slice(-39), draft.printBody]);
+      setFuture([]);
+    }
     setDraft((current) => ({ ...current, printBody: html }));
     setInlineSuggestion("");
     setInlineSuggestionError(null);
+  }
+
+  function addClassicBlock(type: ClassicCrmBlock["type"]) {
+    const id = crypto.randomUUID();
+    if (!createAdvanced) return "";
+    const block = newBlock(type, id);
+    setCreateAdvanced({ ...createAdvanced, blocks: [...(createAdvanced.blocks || []), { id, type, attrs: block.attrs || {} }] });
+    insertBlock(`<div data-oyama-block="body:${id}"><p>[Studio block: ${type} — keep this marker to retain its CRM settings]</p></div>`);
+    return id;
   }
 
   function undoBody() {
@@ -2460,7 +2627,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
   }
 
   useEffect(() => {
-    if (loading) return;
+    if (createEndpoint || loading) return;
     const timer = window.setTimeout(() => {
       if (draftDiffers(draft, savedDraft) || saveFailure) {
         writeTemplateRecoverySnapshot(templateId ?? null, draft, saveFailure);
@@ -2470,7 +2637,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
     }, 450);
 
     return () => window.clearTimeout(timer);
-  }, [draft, loading, saveFailure, savedDraft, templateId]);
+  }, [createEndpoint, draft, loading, saveFailure, savedDraft, templateId]);
 
   useEffect(() => {
     if (!inlineSuggestEnabled || previewMode || loading) {
@@ -2483,8 +2650,25 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
     return () => window.clearTimeout(timer);
   }, [draft.printBody, inlineSuggestEnabled, loading, previewMode]);
 
-  const dirty = draftDiffers(draft, savedDraft);
+  const dirty = draftDiffers(draft, savedDraft) || !!createState && (
+    JSON.stringify(createSettings) !== JSON.stringify(createState.settings) || JSON.stringify(createAdvanced) !== JSON.stringify(createState.advanced) || confirmComparison
+  );
   useEffect(() => { onEditorState?.({dirty, save: async () => !dirty || !saving && !!await save()}); });
+  useEffect(() => {
+    if (!createRecoveryKey || !createState || !dirty || createReadonly) return;
+    try { sessionStorage.setItem(createRecoveryKey, JSON.stringify({ revision: createState.revision, letterRevision: createState.letterRevision, draft, settings: createSettings, advanced: createAdvanced })); }
+    catch { /* Browser storage is optional. */ }
+  }, [createRecoveryKey, createReadonly, createState, dirty, draft, createSettings, createAdvanced]);
+  const lastCreateRevisions = useRef({ revision: create?.revision, campaignRevision: create?.campaignRevision });
+  const parentRevision = create?.revision, parentCampaignRevision = create?.campaignRevision;
+  useEffect(() => {
+    if (!createEndpoint || parentRevision === undefined || parentCampaignRevision === undefined) return;
+    const previous = lastCreateRevisions.current;
+    lastCreateRevisions.current = { revision: parentRevision, campaignRevision: parentCampaignRevision };
+    if (dirty || previous.revision === parentRevision && previous.campaignRevision === parentCampaignRevision) return;
+    setCreateState(current => current && current.campaignRevision <= parentCampaignRevision
+      ? { ...current, revision: parentRevision, campaignRevision: parentCampaignRevision } : current);
+  }, [createEndpoint, dirty, parentRevision, parentCampaignRevision]);
   const editorPdfStale = Boolean(
     editorPdfUrl
     && editorPdfFingerprint !== pdfPreviewFingerprint(draft, testConstituentId),
@@ -2492,16 +2676,16 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
 
   const pendingProofFingerprint = pdfPreviewFingerprint(draft, testConstituentId);
   useEffect(() => {
-    if (!autoRefreshProof || !editorPdfStale || editorPdfLoading || editorPdfError || !testConstituentId) return;
+    if (create?.active === false || !autoRefreshProof || !editorPdfStale || editorPdfLoading || editorPdfError || !testConstituentId) return;
     if (lastAutomaticProofRef.current === pendingProofFingerprint) return;
     const timer = window.setTimeout(() => {
       lastAutomaticProofRef.current = pendingProofFingerprint;
-      void openServerPdfPreview(testConstituentId, false);
+      void openServerPdfPreview(testConstituentId, false, proofKind);
     }, 1500);
     return () => window.clearTimeout(timer);
     // The fingerprint captures all render inputs. UI-only state must not retrigger rendering.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRefreshProof, editorPdfStale, editorPdfLoading, editorPdfError, testConstituentId, pendingProofFingerprint]);
+  }, [autoRefreshProof, editorPdfStale, editorPdfLoading, editorPdfError, testConstituentId, pendingProofFingerprint, proofKind, create?.active]);
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -2607,24 +2791,25 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
     }
   }
   const wordCount = countWords(draft.printBody);
-  const selectedSignature = signatures.find((item) => item.id === draft.signatureBlockId)
-    ?? signatures.find((item) => item.isDefault && item.isActive)
+  const selectedSignature = (createEndpoint && draft.signatureBlockId === savedDraft.signatureBlockId ? undefined : signatures.find((item) => item.id === draft.signatureBlockId))
+    ?? (createEndpoint ? undefined : signatures.find((item) => item.isDefault && item.isActive))
     ?? null;
-  const canvasSigner = selectedSignature?.signerName || branding.defaultLetterSignerName;
-  const canvasSignerTitle = selectedSignature?.signerTitle || branding.defaultLetterSignerTitle;
-  const canvasClosing = selectedSignature?.closingPhrase || branding.defaultLetterClosingPhrase;
+  const canvasSigner = selectedSignature?.signerName || (createState ? createState.signature?.name || "" : branding.defaultLetterSignerName);
+  const canvasSignerTitle = selectedSignature?.signerTitle || (createState ? createState.signature?.title || "" : branding.defaultLetterSignerTitle);
+  const canvasClosing = selectedSignature?.closingPhrase || (createState ? createState.signature?.closing || "" : branding.defaultLetterClosingPhrase);
   const canvasBodyHasSignature = letterBodyHasSignature(draft.printBody, canvasSigner, canvasSignerTitle, canvasClosing);
   const explicitPageBreakCount = countLetterPageBreaks(draft.printBody);
   const pageSizeShort = pageSize.includes("Letter") ? "8.5 x 11 in" : pageSize.includes("Legal") ? "8.5 x 14 in" : "A4";
-  const pageMetrics = pageSizeToMetrics(pageSize);
+  const portraitMetrics = pageSizeToMetrics(pageSize);
+  const pageMetrics = orientation === "landscape" ? { width: portraitMetrics.height, height: portraitMetrics.width } : portraitMetrics;
   const editorFrameWidth = pageMetrics.width + 84;
-  const canvasScale = fitCanvas && canvasWidth > 0 ? Math.min(1, canvasWidth / editorFrameWidth) : zoom / 100;
+  const canvasScale = fitCanvas && canvasWidth > 0 ? Math.min(createEndpoint ? 1.15 : 1, canvasWidth / editorFrameWidth) : zoom / 100;
   const printedPageStatus = editorPdfLoading ? "Calculating printed pages…" : editorPdfError ? "Print proof unavailable" : editorPdfStale ? "Page count needs refresh" : editorPdfPageCount ? `${editorPdfPageCount} printed ${editorPdfPageCount === 1 ? "page" : "pages"} for this recipient` : "Render print proof to count pages";
   const selectedTestConstituent = constituents.find((item) => item.id === testConstituentId) ?? null;
   const globalHeaderPreset = globalHeaderPresets.find((item) => item.isDefault && item.isActive) ?? null;
-  const canvasHeaderMode = globalHeaderPreset?.rightColumnMode === "RECIPIENT" || globalHeaderPreset?.rightColumnMode === "CUSTOM"
+  const canvasHeaderMode = createSettings?.headerMode ?? (globalHeaderPreset?.rightColumnMode === "RECIPIENT" || globalHeaderPreset?.rightColumnMode === "CUSTOM"
     ? globalHeaderPreset.rightColumnMode
-    : "ORGANIZATION";
+    : "ORGANIZATION");
   const canvasRecipient = selectedTestConstituent
     ? {
         displayName: personName(selectedTestConstituent),
@@ -2644,52 +2829,16 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
     return rows.slice(0, 80);
   }, [constituents, testConstituentSearch]);
 
-  if (loading) return <LoadingPage label="Loading canvas builder..." />;
-
-  return (
-    <main className="communication-builder letter-builder flex min-h-[calc(100dvh-88px)] flex-col bg-[#f5f5f5]">
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/jpg,image/webp"
-        className="hidden"
-        onChange={handleImageFileSelected}
-      />
-      <div className="sticky top-[89px] z-30 shrink-0 border-b border-[#d1d1d1] lg:top-0 lg:z-40">
-      <div className="bg-white px-3 sm:px-4 xl:px-7">
-        <div className="flex min-h-12 flex-wrap items-center gap-2 py-1.5">
-          <div className="flex max-w-full items-center gap-1 overflow-x-auto border border-[#d1d1d1] bg-[#f3f2f1] p-1">
-            {(["File", "Insert", "Format", "Layout", "Review", "View"] as const).map((tab) => <button key={tab} type="button" onClick={() => { setActiveRibbon(tab); setToolDrawerOpen((open) => activeRibbon === tab ? !open : true); }} className={["h-8 px-2.5 text-xs font-semibold transition-all", activeRibbon === tab && toolDrawerOpen ? "bg-white text-[#0f548c] shadow-[inset_0_-2px_0_#0f6cbd]" : "text-slate-600 hover:bg-white hover:text-slate-900"].join(" ")}>{tab}</button>)}
-          </div>
-          <button type="button" onClick={() => setAiComposerOpen(true)} title="Open Steward AI writer" className="flex h-8 w-8 shrink-0 items-center justify-center border border-[#9cc5e8] bg-[#eff6fc] text-sm font-bold text-[#0f548c] transition hover:bg-white" aria-label="Open Steward AI writer">✦</button>
-          <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
-            <span aria-live="polite" className="text-xs font-semibold text-slate-600">{printedPageStatus}</span>
-            <span className={[
-              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
-              saveFailure ? "text-red-700" : dirty ? "text-[#5c3b00]" : "text-[#0f548c]",
-              saveFailure ? "border-red-200 bg-red-50" : dirty ? "border-[#e1b96a] bg-[#fff4ce]" : "border-[#9cc5e8] bg-[#eff6fc]",
-            ].join(" ")}
-            >
-              <span className={["h-1.5 w-1.5 rounded-full", saveFailure ? "bg-red-500" : dirty ? "bg-[#d29200]" : "bg-[#0f6cbd]"].join(" ")} aria-hidden="true" />
-              {saving ? "Saving..." : saveFailure ? "Save failed - recovery ready" : dirty ? "Unsaved changes" : "All changes saved"}
-            </span>
-            <span title={localChecklistReady ? "Ready for server preflight" : `${localChecklist.filter((item) => !item.ok).length} item${localChecklist.filter((item) => !item.ok).length === 1 ? "" : "s"} to review`} className={["hidden border px-2 py-1 text-[11px] font-semibold xl:inline", localChecklistReady ? "border-[#9cc5e8] bg-[#eff6fc] text-[#0f548c]" : "border-[#e1b96a] bg-[#fff4ce] text-[#5c3b00]"].join(" ")}>{localChecklistReady ? "Ready" : "Review"}</span>
-            {notice ? <span className="hidden max-w-64 truncate text-xs font-semibold text-[#0f548c] 2xl:inline">{notice}</span> : null}
-            <IconButton label="Zoom out" onClick={() => { setFitCanvas(false); setZoom(Math.max(25, Math.round(canvasScale * 100) - 10)); }}>-</IconButton>
-            <span className="w-12 text-center text-xs font-semibold text-slate-600">{Math.round(canvasScale * 100)}%</span>
-            <IconButton label="Zoom in" onClick={() => { setFitCanvas(false); setZoom(Math.min(160, Math.round(canvasScale * 100) + 10)); }}>+</IconButton>
-            <IconButton label="Undo" onClick={undoBody} disabled={history.length === 0}>↶</IconButton>
-            <IconButton label="Redo" onClick={redoBody} disabled={future.length === 0}>↷</IconButton>
-            <Button onClick={() => setTestConstituentLookupOpen(true)}>{selectedTestConstituent ? personName(selectedTestConstituent) : "Test recipient"}</Button>
-            <Button onClick={addPage}>Add Page</Button>
-            <Button onClick={() => void openServerPdfPreview()} disabled={editorPdfLoading}>{editorPdfLoading ? "Rendering..." : editorPdfStale ? "Refresh PDF" : "Preview"}</Button>
-            <Button onClick={() => void save()} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
-            <Button onClick={() => void saveAndPublish()} tone="primary" disabled={saving}>Review & publish</Button>
-          </div>
-        </div>
-      </div>
-      {toolDrawerOpen ? <div className="flex max-h-56 items-stretch gap-2 overflow-x-auto border-b border-[#d1d1d1] bg-[#f3f2f1] px-3 py-2 sm:px-4 xl:px-7">
-        {activeRibbon === "File" ? (
+  function changeTextFont(event: ChangeEvent<HTMLSelectElement>) {
+    setFontFamily(event.target.value);
+    replaceSelection(`<span style="font-family:${escapeHtml(event.target.value)};">${selectedText("Text")}</span>`, true);
+  }
+  function changeTextSize(event: ChangeEvent<HTMLSelectElement>) {
+    setFontSize(event.target.value);
+    replaceSelection(`<span style="font-size:${escapeHtml(event.target.value)}pt;">${selectedText("Text")}</span>`, true);
+  }
+  const ribbonTools = (ribbon: typeof activeRibbon) => <div className="flex max-h-56 items-stretch gap-2 overflow-x-auto border-b border-[#d1d1d1] bg-[#f3f2f1] px-3 py-2 sm:px-4 xl:px-7">
+        {ribbon === "File" ? (
           <>
             <RibbonButton disabled={saving} onClick={() => void save()}>Save Draft</RibbonButton>
             <RibbonButton disabled={saving} onClick={() => void saveAndPublish()}>Review & publish</RibbonButton>
@@ -2697,17 +2846,17 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
             <RibbonButton onClick={() => setDraft(EMPTY_DRAFT)}>New Blank Template</RibbonButton>
           </>
         ) : null}
-        {activeRibbon === "Insert" ? (
+        {ribbon === "Insert" ? (
           <>
               <RibbonGroup label="Insert">
                 <RibbonToolButton iconName="merge-fields" glyph="{}" label="Merge Field" onClick={() => allFields[0] ? insertToken(allFields[0]) : openInspector("Merge Fields")} />
                 <RibbonToolButton iconName="signature-block" glyph="✒" label="Signature" onClick={() => insertSignature()} />
               </RibbonGroup>
             <RibbonGroup label="Font">
-              <select value={fontFamily} onChange={(event) => { setFontFamily(event.target.value); replaceSelection(`<span style="font-family:${escapeHtml(event.target.value)};">${selectedText("Text")}</span>`, true); }} className="h-9 w-32 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold">
+              <select value={fontFamily} onChange={changeTextFont} className="h-9 w-32 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold">
                 {["Calibri", "Arial", "Georgia", "Times New Roman", "Verdana"].map((font) => <option key={font} value={font}>{font}</option>)}
               </select>
-              <select value={fontSize} onChange={(event) => { setFontSize(event.target.value); replaceSelection(`<span style="font-size:${escapeHtml(event.target.value)}pt;">${selectedText("Text")}</span>`, true); }} className="h-9 w-16 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold">
+              <select value={fontSize} onChange={changeTextSize} className="h-9 w-16 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold">
                 {["9", "10", "11", "12", "14", "16", "18", "24"].map((size) => <option key={size} value={size}>{size}</option>)}
               </select>
               <select aria-label="Line height" value={lineHeight} onChange={(event) => applyLineHeight(event.target.value)} className="h-9 w-24 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold">
@@ -2736,13 +2885,13 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
             </RibbonGroup>
           </>
         ) : null}
-        {activeRibbon === "Format" ? (
+        {ribbon === "Format" ? (
           <>
             <RibbonGroup label="Font">
-              <select value={fontFamily} onChange={(event) => { setFontFamily(event.target.value); replaceSelection(`<span style="font-family:${escapeHtml(event.target.value)};">${selectedText("Text")}</span>`, true); }} className="h-9 w-32 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold">
+              <select value={fontFamily} onChange={changeTextFont} className="h-9 w-32 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold">
                 {["Calibri", "Arial", "Georgia", "Times New Roman", "Verdana"].map((font) => <option key={font} value={font}>{font}</option>)}
               </select>
-              <select value={fontSize} onChange={(event) => { setFontSize(event.target.value); replaceSelection(`<span style="font-size:${escapeHtml(event.target.value)}pt;">${selectedText("Text")}</span>`, true); }} className="h-9 w-16 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold">
+              <select value={fontSize} onChange={changeTextSize} className="h-9 w-16 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold">
                 {["9", "10", "11", "12", "14", "16", "18", "24"].map((size) => <option key={size} value={size}>{size}</option>)}
               </select>
               <select aria-label="Line height" value={lineHeight} onChange={(event) => applyLineHeight(event.target.value)} className="h-9 w-24 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold">
@@ -2764,7 +2913,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
             </RibbonGroup>
           </>
         ) : null}
-        {activeRibbon === "Layout" ? (
+        {ribbon === "Layout" ? (
           <RibbonGroup label="Tools">
             <RibbonButton onClick={() => insertBlock('<hr />')}>Divider</RibbonButton>
             <RibbonButton onClick={() => insertWhiteSpace(18)}>Blank Line</RibbonButton>
@@ -2775,7 +2924,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
             <RibbonButton onClick={() => setShowMarginGuides((value) => !value)}>{showMarginGuides ? "Hide Guides" : "Show Guides"}</RibbonButton>
           </RibbonGroup>
         ) : null}
-        {activeRibbon === "Review" ? (
+        {ribbon === "Review" ? (
           <>
           <RibbonGroup label="Tools">
             <RibbonButton onClick={runSpellCheck}>Spelling</RibbonButton>
@@ -2808,7 +2957,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
           ) : null}
           </>
         ) : null}
-        {activeRibbon === "View" ? (
+        {ribbon === "View" ? (
           <RibbonGroup label="Tools">
             <RibbonButton onClick={() => setTestConstituentLookupOpen(true)}>Test Constituent</RibbonButton>
             <RibbonButton onClick={() => void openServerPdfPreview()}>Production Preview</RibbonButton>
@@ -2816,7 +2965,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
             <RibbonButton onClick={() => openInspector("Block Settings")}>Block Settings</RibbonButton>
           </RibbonGroup>
         ) : null}
-        {activeRibbon === "AI" ? (
+        {ribbon === "AI" ? (
           <>
             <RibbonGroup label="Steward Writing">
               <RibbonToolButton iconName="steward-ai" glyph="AI" label="Composer" onClick={() => setAiComposerOpen(true)} />
@@ -2836,14 +2985,8 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
             </RibbonGroup>
           </>
         ) : null}
-      </div> : null}
-      </div>
-      {error ? <Alert tone="amber">{error}</Alert> : null}
-      {editorPdfError && !editorPdfOpen ? <Alert tone="amber">{editorPdfError}</Alert> : null}
-      <div className="letters-ribbon-mobile-tabs" role="group" aria-label="Builder panels">{(["write", "blocks", "settings"] as const).map(panel => <button key={panel} type="button" aria-pressed={mobileBuilderPanel === panel} onClick={() => setMobileBuilderPanel(panel)}>{panel === "write" ? <FileText size={15} aria-hidden="true" /> : panel === "blocks" ? <LayoutGrid size={15} aria-hidden="true" /> : <SlidersHorizontal size={15} aria-hidden="true" />}{titleCase(panel)}</button>)}</div>
-      <div className="letter-legacy-grid grid min-h-0 flex-1 grid-cols-1 gap-5 p-4 lg:grid-cols-[224px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_300px] lg:gap-6 lg:overflow-hidden lg:p-5 xl:p-6">
-        <aside data-mobile-panel="blocks" data-mobile-active={mobileBuilderPanel === "blocks"} aria-label="Letter blocks" className="order-1 max-h-[34dvh] min-h-0 overflow-y-auto rounded-[18px] border border-white/90 bg-white/90 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none">
-          <div className="space-y-2.5">
+      </div>;
+  const blockLibrary = <div className="space-y-2.5">
             <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-3 shadow-sm">
               <p className="text-sm font-semibold text-slate-900">Letter Block Library</p>
               <p className="mt-1 text-xs leading-4 text-slate-600">Click to insert, or drag a block onto the letter. Keep CRM data in the separate drawer until you need it.</p>
@@ -2909,25 +3052,24 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
                 <Button onClick={() => insertSignature()}>Insert default signature</Button>
               </div>
             </details>
-          </div>
-        </aside>
-        <section data-mobile-panel="write" data-mobile-active={mobileBuilderPanel === "write"} aria-label="Writing and print proof" className="letter-editor-proof-layout order-2 min-w-0 overflow-auto rounded-md border border-slate-300 bg-slate-100 p-2 sm:p-5 lg:order-none">
+          </div>;
+  const letterCanvas = <section ref={proofViewportRef} data-mobile-panel="write" data-mobile-active={mobileBuilderPanel === "write"} data-proof-visible={!!editorPdfUrl} aria-label="Writing and print proof" className="letter-editor-proof-layout order-2 min-w-0 overflow-auto rounded-md border border-slate-300 bg-slate-100 p-2 sm:p-5 lg:order-none">
           <div className="letter-writing-pane min-w-0">
           <div ref={canvasViewportRef} className="w-full min-w-0">
-          <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-slate-700">
+          {!createEndpoint && <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-slate-700">
             <CheckField label="Fit canvas to width" checked={fitCanvas} onChange={setFitCanvas} />
             <span>Continuous editing · use Print proof for page breaks</span>
-          </div>
+          </div>}
           <div style={{ zoom: canvasScale, width: editorFrameWidth }}>
           {showMarginGuides ? <EditorRuler pageWidth={pageMetrics.width} leftGutter={30} /> : null}
           <div className="mx-auto flex gap-2" style={{ width: editorFrameWidth }}>
             {showMarginGuides ? <EditorVerticalRuler pageHeight={pageMetrics.height} /> : <div className="w-7 shrink-0" />}
             <div className="shrink-0" style={{ width: pageMetrics.width }}>
               <LetterPage
-                branding={branding}
+                branding={createSettings ? { ...branding, globalFooterHtml: createSettings.footerHtml } : branding}
                 recipient={canvasRecipient}
                 headerRightColumnMode={canvasHeaderMode}
-                headerRightColumnHtml={globalHeaderPreset?.rightColumnHtml}
+                headerRightColumnHtml={createSettings?.headerHtml ?? globalHeaderPreset?.rightColumnHtml}
                 title={draft.name || "Letter Preview"}
                 subject={draft.printSubject}
                 salutation={null}
@@ -2942,11 +3084,11 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
                   title: canvasSignerTitle,
                   email: selectedSignature?.email || branding.defaultLetterSignerEmail,
                   phone: selectedSignature?.phone || branding.defaultLetterSignerPhone,
-                  signatureUrl: selectedSignature?.signatureImageUrl || branding.defaultLetterSignatureImageUrl,
+                  signatureUrl: selectedSignature?.signatureImageUrl || (createState ? createState.signature?.imageUrl || "" : branding.defaultLetterSignatureImageUrl),
                   closing: canvasClosing,
                 }}
                 pageWidth={pageMetrics.width}
-                autoSignature={!canvasBodyHasSignature}
+                autoSignature={!canvasBodyHasSignature && createState?.renderer !== "studio"}
                 bodySlot={(
                   <>
                     <label className="sr-only" htmlFor="printBody">Print body</label>
@@ -2962,8 +3104,18 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
                       <div
                         id="printBody"
                         ref={editorRef}
-                        contentEditable
+                        contentEditable={!createReadonly}
+                        role="textbox"
+                        aria-label="Print body"
+                        aria-multiline="true"
                         suppressContentEditableWarning
+                        onPaste={createEndpoint ? event => {
+                          event.preventDefault();
+                          const html = event.clipboardData.getData("text/html");
+                          if (html) document.execCommand("insertHTML", false, sanitizeStudioHtml(html, true));
+                          else document.execCommand("insertText", false, event.clipboardData.getData("text/plain"));
+                          syncEditorContent();
+                        } : undefined}
                         onInput={syncEditorContent}
                         onFocus={rememberEditorSelection}
                         onBlur={rememberEditorSelection}
@@ -2972,9 +3124,9 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
                         onKeyUp={rememberEditorSelection}
                         onKeyDown={handleEditorKeyDown}
                         onDragOver={(event) => event.preventDefault()}
-                        onDrop={handleLetterPaletteDrop}
+                        onDrop={createReadonly ? event => event.preventDefault() : handleLetterPaletteDrop}
                         className="h-full min-h-0 max-h-full w-full overflow-y-auto border-0 bg-transparent pr-1 text-[14px] leading-[18.5px] text-slate-950 outline-none [&_p]:my-[9px] [&_li]:my-[4px] [&_ul]:my-[9px] [&_ul]:list-disc [&_ul]:pl-7 [&_ol]:my-[9px] [&_ol]:list-decimal [&_ol]:pl-7 [&_h1]:my-[12px] [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-[9px] [&_h2]:text-xl [&_h2]:font-semibold [&_hr]:my-[18px] [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-slate-400 [&_table]:my-0 [&_table]:w-full [&_table]:border-collapse [&_table]:text-[12px] [&_table]:leading-[14.5px] [&_td]:p-2 [&_th]:p-2 [&_[data-letter-spacer]]:my-1 [&_[data-letter-spacer]]:border [&_[data-letter-spacer]]:border-dashed [&_[data-letter-spacer]]:border-slate-300 [&_[data-letter-spacer]]:bg-slate-50/50 [&_[data-letter-page-break]]:my-4 [&_[data-letter-page-break]]:flex [&_[data-letter-page-break]]:items-center [&_[data-letter-page-break]]:gap-2 [&_[data-letter-page-break]]:text-[11px] [&_[data-letter-page-break]]:font-semibold [&_[data-letter-page-break]]:uppercase [&_[data-letter-page-break]]:tracking-wide [&_[data-letter-page-break]]:text-emerald-700 [&_[data-letter-page-break]]:before:h-px [&_[data-letter-page-break]]:before:flex-1 [&_[data-letter-page-break]]:before:bg-emerald-300 [&_[data-letter-page-break]]:after:h-px [&_[data-letter-page-break]]:after:flex-1 [&_[data-letter-page-break]]:after:bg-emerald-300"
-                        style={{ fontFamily: "Arial, Helvetica, sans-serif" }}
+                        style={createAdvanced ? { fontFamily: createAdvanced.styles.font, fontSize: `${createAdvanced.styles.fontSize}pt`, lineHeight: createAdvanced.styles.lineHeight, color: createAdvanced.styles.color } : { fontFamily: "Arial, Helvetica, sans-serif" }}
                         spellCheck
                       />
                     )}
@@ -2985,7 +3137,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
           </div>
           </div>
           </div>
-          <div className="mx-auto mt-4 flex min-h-10 max-w-full flex-wrap items-center gap-2 rounded-xl border border-white bg-white/90 px-3 py-2 text-xs text-slate-600 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur" style={{ width: editorFrameWidth }}>
+          {!createEndpoint && <div className="mx-auto mt-4 flex min-h-10 max-w-full flex-wrap items-center gap-2 rounded-xl border border-white bg-white/90 px-3 py-2 text-xs text-slate-600 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur" style={{ width: editorFrameWidth }}>
             <span className="font-semibold text-slate-700">Editor canvas</span>
             <span className="text-slate-300 select-none">·</span>
             <span>{pageSizeShort}</span>
@@ -2998,7 +3150,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
             <span className="text-slate-300 select-none">·</span>
             <span>{explicitPageBreakCount} manual {explicitPageBreakCount === 1 ? "break" : "breaks"}</span>
             <span className="ml-auto">{Math.round(canvasScale * 100)}%</span>
-          </div>
+          </div>}
           {canvasOverflowing ? (
             <div className="mx-auto mt-2 max-w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800" style={{ width: editorFrameWidth }}>
               Content continues below. Render the print proof to check automatic page breaks for the selected recipient, or use Add Page to choose a break.
@@ -3011,7 +3163,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
                 <h2 className="text-sm font-semibold text-slate-900">Print proof</h2>
                 <p className="text-xs text-slate-600">Exact PDF pages for the selected recipient. The writing canvas is continuous; this PDF shows printed page breaks.</p>
               </div>
-              <Button onClick={() => void openServerPdfPreview(testConstituentId, false)} disabled={editorPdfLoading}>{editorPdfLoading ? "Rendering…" : "Refresh print proof"}</Button>
+              <Button onClick={() => void openServerPdfPreview(testConstituentId, false, proofKind)} disabled={editorPdfLoading}>{editorPdfLoading ? "Rendering…" : "Refresh print proof"}</Button>
             </div>
             <div className="my-2 flex flex-wrap items-center gap-3">
               <CheckField label="Refresh proof after edits" checked={autoRefreshProof} onChange={setAutoRefreshProof} />
@@ -3019,27 +3171,26 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
               {editorPdfUrl ? <Button onClick={() => setEditorPdfOpen(true)}>Expand PDF</Button> : null}
             </div>
             {editorPdfStale ? <p role="status" className="mb-2 text-xs font-semibold text-amber-800">Preview out of date - refresh to include the latest edits</p> : null}
-            {editorPdfUrl ? (
-              <object title="Print proof PDF" data={`${editorPdfUrl}#toolbar=1&navpanes=0&view=FitH`} type="application/pdf" className="h-[65dvh] min-h-64 w-full bg-slate-100">
+            {proofWarnings.map(warning => <p className="oc-help" key={warning}>{warning}</p>)}
+            {editorPdfUrl ? createEndpoint ? <LetterProofViewer compact label="" url={editorPdfUrl} busy={editorPdfLoading} stale={editorPdfStale} pageNumber={proofPage} onPageChange={setProofPage}/> : (
+              <object title="Print proof PDF" data={`${editorPdfUrl}#page=${proofPage}&toolbar=1&navpanes=0&view=FitH`} type="application/pdf" className="h-[65dvh] min-h-64 w-full bg-slate-100">
                 <p className="p-3 text-sm">PDF preview is unavailable in this browser. <a href={editorPdfUrl} target="_blank" rel="noreferrer" className="underline">Open the rendered PDF</a>.</p>
               </object>
             ) : <p className="py-4 text-sm text-slate-600">Choose a recipient and render a proof to verify page breaks, signature placement, and margins before printing.</p>}
           </section>
-        </section>
-        <aside data-mobile-panel="settings" data-mobile-active={mobileBuilderPanel === "settings"} aria-label="Letter settings" className="order-3 max-h-[40dvh] min-h-0 overflow-y-auto rounded-[18px] border border-white/90 bg-white/90 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:col-span-2 xl:col-span-1 xl:order-none xl:max-h-none">
-          <div className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-slate-200/80 bg-white/95 p-2 backdrop-blur">
-            {(["Document", "Merge Fields", "Block Settings"] as const).map((tab) => <button key={tab} type="button" onClick={() => openInspector(tab)} className={["h-8 rounded-lg px-2.5 text-[11px] font-semibold transition-all", inspectorTab === tab ? "bg-indigo-50 text-indigo-800 shadow-sm ring-1 ring-indigo-100" : "text-slate-600 hover:bg-slate-50"].join(" ")}>{tab}</button>)}
-          </div>
-          <div className="space-y-3 p-3">
-            {inspectorTab === "Document" ? (
+        </section>;
+  const inspectorTools = (panel: typeof inspectorTab) => <div className="space-y-3 p-3">
+            {panel === "Document" ? (
               <>
-                <InspectorCard title="Template Info">
+                {!createEndpoint && <InspectorCard title="Template Info">
                   <TextField label="Name" value={draft.name} onChange={(value) => setDraft((current) => ({ ...current, name: value }))} />
                   <LabeledSelect label="Category" value={draft.category} onChange={(value) => setDraft((current) => ({ ...current, category: value }))} options={CATEGORIES} />
                   <TextArea label="Description" value={draft.description} onChange={(value) => setDraft((current) => ({ ...current, description: value }))} />
-                </InspectorCard>
+                </InspectorCard>}
+
                 <InspectorCard title="Page Setup" tooltip="Page size and margin guides control the printable canvas used for preview and server-rendered PDF output.">
-                  <LabeledSelect label="Page Size" value={pageSize} onChange={(value) => updatePageSize(value as LetterPageSize)} options={["Letter (8.5 x 11 in)", "Legal (8.5 x 14 in)", "A4 (8.27 x 11.69 in)"]} />
+                  <LabeledSelect label="Page Size" value={pageSize} onChange={(value) => updatePageSize(value as LetterPageSize)} options={Object.values(CLASSIC_PAPERS).slice(0, createEndpoint ? 4 : 3)} />
+                  {createEndpoint && <LabeledSelect label="Orientation" value={orientation} onChange={value => updateOrientation(value === "landscape" ? "landscape" : "portrait")} options={["portrait", "landscape"]}/>}
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Margins (inches)</p>
                   <p className="text-xs text-slate-600">0.125–1.5 inches, applied when you leave the field.</p>
                   <div className="grid grid-cols-2 gap-3">
@@ -3050,7 +3201,19 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
                   </div>
                   <CheckField label="Show Margin Guides" checked={showMarginGuides} onChange={setShowMarginGuides} />
                 </InspectorCard>
-                <InspectorCard title="Global Branding" tooltip="Branding Defaults controls the shared printable logo, header, footer, recipient-header behavior, and default signature. Individual templates do not override those defaults.">
+                {createSettings ? <>
+                  <details className="classic-letter-settings"><summary>Template details</summary><InspectorCard title="Template Info">
+                  <TextField label="Name" value={draft.name} onChange={(value) => setDraft((current) => ({ ...current, name: value }))} />
+                  <LabeledSelect label="Category" value={draft.category} onChange={(value) => setDraft((current) => ({ ...current, category: value }))} options={CATEGORIES} />
+                  <TextArea label="Description" value={draft.description} onChange={(value) => setDraft((current) => ({ ...current, description: value }))} />
+                </InspectorCard></details>
+                  <ClassicLetterProperties settings={createSettings} changeSettings={setCreateSettings} advanced={createAdvanced} changeAdvanced={setCreateAdvanced}
+                    recipient={testConstituentId} gifts={proofGifts} signers={createState?.signers || []} addBlock={addClassicBlock}
+                    enableAdvanced={() => { if (window.confirm("Use advanced print layout for this draft? Review its new PDF before approval.")) void save(undefined, true); }}/>
+                  {!createAdvanced && <label className="oc-form">Signer<select value={draft.signatureBlockId} onChange={event => setDraft(current => ({ ...current, signatureBlockId: event.target.value }))}>
+                    <option value="">Use letterhead default</option>{signatures.filter(item => item.isActive).map(item => <option key={item.id} value={item.id}>{item.signerName}</option>)}
+                  </select></label>}
+                </> : <><InspectorCard title="Global Branding" tooltip="Branding Defaults controls the shared printable logo, header, footer, recipient-header behavior, and default signature. Individual templates do not override those defaults.">
                   <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
                     <p className="font-semibold text-slate-800">Shared letter output defaults</p>
                     <p className="mt-1">The printed logo, header, footer, upper-right organization/recipient information, and default signature come from Branding Defaults. This template only controls its letter body.</p>
@@ -3071,7 +3234,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
                 <InspectorCard title="Email Companion" tooltip="Create a reusable OyamaEmail template for review and sending. If this printable was created from an Email template, its original block layout is restored exactly.">
                   <p className="text-xs leading-5 text-slate-600">Email delivery stays draft-first in OyamaEmail. This action never sends to recipients.</p>
                   <Button onClick={() => void createOyamaEmailCompanion()} disabled={saving}>Create OyamaEmail Companion</Button>
-                </InspectorCard>
+                </InspectorCard></>}
                 <InspectorCard title="Preflight Checklist" tooltip="These checks run locally while you edit so staff can catch missing merge data, unknown tokens, and unsaved changes before publish review.">
                   <p className="text-xs text-slate-600">Live readiness checks while you edit in canvas.</p>
                   <div className="mt-3 space-y-2">
@@ -3111,7 +3274,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
                 </InspectorCard>
               </>
             ) : null}
-            {inspectorTab === "Merge Fields" ? (
+            {panel === "Merge Fields" ? (
               <>
                 <div className="space-y-3 rounded-md border border-slate-200 bg-white p-3">
                   <div>
@@ -3211,7 +3374,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
                 ))}
               </>
             ) : null}
-            {inspectorTab === "Block Settings" ? (
+            {panel === "Block Settings" ? (
               <>
                 <InspectorCard title="Layout & Blocks">
                   <div className="grid gap-2">
@@ -3307,9 +3470,8 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
                 </InspectorCard>
               </>
             ) : null}
-          </div>
-        </aside>
-      </div>
+          </div>;
+  const editorDialogs = <>
       {qrDialogOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="insert-qr-title">
           <div className="flex max-h-[min(720px,calc(100dvh-24px))] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
@@ -3437,7 +3599,7 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
                       <td className="px-4 py-3 text-xs text-slate-600">{formatAddress(row) || "No address"}</td>
                       <td className="px-4 py-3"><StatusPill label={row.doNotMail ? "Do Not Mail" : hasAddress(row) ? "Ready" : "Missing Address"} tone={row.doNotMail ? "red" : hasAddress(row) ? "green" : "orange"} /></td>
                       <td className="px-4 py-3">
-                        <button type="button" onClick={() => { setTestConstituentId(row.id); void openServerPdfPreview(row.id); }} className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" disabled={editorPdfLoading}>
+                        <button type="button" onClick={() => { setTestConstituentId(row.id); setProofGift(""); void openServerPdfPreview(row.id, true, "LETTER", ""); }} className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" disabled={editorPdfLoading}>
                           Use & Render
                         </button>
                       </td>
@@ -3468,14 +3630,166 @@ function TemplateBuilder({ templateId, onEditorState, onSaved }: { templateId?: 
             </div>
             {editorPdfError ? <Alert tone="amber">{editorPdfError}</Alert> : null}
             {editorPdfStale ? <Alert tone="amber">This PDF was rendered before the latest letter or recipient changes. Refresh it before saving or printing.</Alert> : null}
-            <object title="Editor Live PDF Preview" data={`${editorPdfUrl}#toolbar=1&navpanes=0&view=FitH`} type="application/pdf" className="min-h-0 flex-1 bg-slate-100">
+            {proofWarnings.map(warning => <p className="oc-help" key={warning}>{warning}</p>)}
+            {createEndpoint ? <LetterProofViewer compact label="" url={editorPdfUrl} busy={editorPdfLoading} stale={editorPdfStale} pageNumber={proofPage} onPageChange={setProofPage}/> : <object title="Editor Live PDF Preview" data={`${editorPdfUrl}#page=${proofPage}&toolbar=1&navpanes=0&view=FitH`} type="application/pdf" className="min-h-0 flex-1 bg-slate-100">
               <div className="flex h-full items-center justify-center bg-slate-100 p-6 text-center text-sm text-slate-700">
                 This browser is not rendering the PDF inline. Use Print to open the print preview window or Save PDF to download it.
               </div>
-            </object>
+            </object>}
           </div>
         </dialog>
       ) : null}
+
+  </>;
+
+  if (loading) return <LoadingPage label="Loading canvas builder..." />;
+  if (create) {
+    if (!createState) return <div className="oc-error" role="alert">{error || "The Create Letter could not load."} <button className="oc-button" onClick={() => void load()}>Retry</button></div>;
+    const paper = (Object.keys(CLASSIC_PAPERS) as Array<keyof typeof CLASSIC_PAPERS>).find(key => CLASSIC_PAPERS[key] === pageSize) || "LETTER";
+    return <CreateLetterLayout binding={create} surface={{
+      canvas: <div className="classic-letter-desk">{letterCanvas}</div>,
+      blocks: <fieldset className="classic-editor-controls" disabled={createReadonly}>{blockLibrary}</fieldset>,
+      fields: <fieldset className="classic-editor-controls" disabled={createReadonly}>{inspectorTools("Merge Fields")}</fieldset>,
+      pageInspector: <fieldset className="classic-editor-controls" disabled={createReadonly}>{inspectorTools("Document")}</fieldset>,
+      blockInspector: <fieldset className="classic-editor-controls" disabled={createReadonly}>{inspectorTools("Block Settings")}</fieldset>,
+      toolbar: tab => <fieldset className="classic-editor-controls" disabled={createReadonly}>{tab === "Home" ? <div className="classic-home-tools">
+        <select aria-label="Letter text font" value={fontFamily} onChange={changeTextFont}>
+          {["Calibri", "Arial", "Georgia", "Times New Roman", "Courier New"].map(font => <option key={font}>{font}</option>)}
+        </select>
+        <select aria-label="Letter text size" value={fontSize} onChange={changeTextSize}>
+          {["9", "10", "11", "12", "14", "16", "18", "24"].map(size => <option key={size}>{size}</option>)}
+        </select>
+        <div className="classic-home-group">
+          <button aria-label="Bold" className="cs-tool" onMouseDown={event => event.preventDefault()} onClick={() => formatInline("strong")}><b>B</b></button>
+          <button aria-label="Italic" className="cs-tool" onMouseDown={event => event.preventDefault()} onClick={() => formatInline("em")}><i>I</i></button>
+          <button aria-label="Underline" className="cs-tool" onMouseDown={event => event.preventDefault()} onClick={() => formatInline("u")}><u>U</u></button>
+        </div>
+        <div className="classic-home-group">
+          <button className="cs-tool" aria-label="Align left" onClick={() => applyAlignment("left")}>≡</button>
+          <button className="cs-tool" aria-label="Align center" onClick={() => applyAlignment("center")}>≡</button>
+          <button className="cs-tool" aria-label="Bulleted list" onClick={() => insertList(false)}>☷</button>
+        </div>
+        <div className="v5-style-gallery"><button onClick={() => formatBlock("p")}>Normal<small>Body text</small></button><button onClick={() => formatBlock("h2")}>Heading<small>Section</small></button><button onClick={() => formatBlock("h1")}>Title<small>Page title</small></button></div>
+      </div> : <div className="classic-ribbon-tools">
+        {ribbonTools(tab as typeof activeRibbon)}
+        {tab === "Layout" && <select aria-label="Letter line height" value={lineHeight} onChange={event => applyLineHeight(event.target.value)}>
+          {["1", "1.15", "1.25", "1.5", "1.75", "2"].map(value => <option key={value} value={value}>{value} lines</option>)}
+        </select>}
+        {tab === "Insert" && <Button onClick={() => setAiComposerOpen(true)}>Steward AI</Button>}
+      </div>}</fieldset>,
+      dialogs: <>{imageInputForCreate()}{editorDialogs}</>,
+      alerts: <>
+        {error && <div className="oc-error" role="alert">{error}</div>}
+        {editorPdfError && !editorPdfOpen && <div className="oc-error" role="alert">{editorPdfError}</div>}
+        {createState.needsReview && <div className="oc-notice">
+          {createState.diagnostics.join(" ")} {!createReadonly && <label className="oc-check">
+            <input type="checkbox" disabled={!editorPdfUrl || editorPdfStale} checked={confirmComparison && !!editorPdfUrl && !editorPdfStale}
+              onChange={event => setConfirmComparison(event.target.checked)}/>I compared the letter and its PDF
+          </label>}
+        </div>}
+        {notice?.includes("recovery") && <div className="oc-notice">{notice} <Button onClick={() => {
+          const recovery = readCreateLetterRecovery(createRecoveryKey);
+          if (!recovery) return;
+          const url = URL.createObjectURL(new Blob([JSON.stringify(recovery, null, 2)], { type: "application/json" }));
+          const download = document.createElement("a"); download.href = url; download.download = "letter-recovery.json"; download.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }}>Download recovery copy</Button></div>}
+      </>,
+      recipientControls: <div className="oc-form">
+        <Button onClick={() => setTestConstituentLookupOpen(true)}>{selectedTestConstituent ? personName(selectedTestConstituent) : "Choose proof recipient"}</Button>
+        {!!proofGifts.length && <label>Gift for this proof<select value={proofGift} onChange={event => { setProofGift(event.target.value); void openServerPdfPreview(testConstituentId, true, "LETTER", event.target.value); }}>
+          <option value="">Use saved gift selection</option>{proofGifts.map(gift => <option key={gift.id} value={gift.id}>{new Date(gift.date).toLocaleDateString()} · {gift.amount}</option>)}
+        </select></label>}
+        {!createReadonly && !createAdvanced && !!proofGift && testConstituentId && <Button onClick={() => setCreateSettings({ ...createSettings!, giftSelections: { ...createSettings?.giftSelections, [testConstituentId]: proofGift } })}>Use this gift in production</Button>}
+        {!createReadonly && !createAdvanced && !!createSettings?.giftSelections?.[testConstituentId] && <Button onClick={() => {
+          const choices = { ...createSettings.giftSelections }; delete choices[testConstituentId]; setCreateSettings({ ...createSettings, giftSelections: choices }); setProofGift("");
+        }}>Use the latest gift in production</Button>}
+        {testConstituentId && <button type="button" className="oc-button small" onClick={() => { setTestConstituentId(""); setProofGift(""); setProofGifts([]); void openServerPdfPreview("", true, "LETTER", ""); }}>Show sample proof</button>}
+      </div>,
+      saved: createState.saved, dirty, saving: saving || editorPdfLoading,
+      save: async () => createState.saved && !dirty || !!await save(),
+      flush: async () => !dirty || !!await save(),
+      undo: undoBody, redo: redoBody, canUndo: history.length > 0, canRedo: future.length > 0,
+      preview: pack => { void openServerPdfPreview(testConstituentId, true, pack ? "ALL" : "LETTER"); },
+      jumpToPage: page => {
+        if (proofKind !== "LETTER" || editorPdfStale) {
+          void openServerPdfPreview(testConstituentId).then(() => setProofPage(page));
+        } else {
+          setProofPage(page);
+          if ((proofViewportRef.current?.clientWidth ?? 0) < 980) setEditorPdfOpen(true);
+        }
+      },
+      newPage: addPage, html: draft.printBody, applyHtml: html => commitBody(sanitizeStudioHtml(html, true)),
+      page: { paper, orientation, margins, headerHeight: createAdvanced?.page.headerHeight || 0, footerHeight: createAdvanced?.page.footerHeight || 0 },
+      pages: editorPdfStale ? 0 : editorPdfPageCount ?? 0, words: wordCount, zoom: fitCanvas ? 0 : zoom,
+      fittedZoom: Math.round(canvasScale * 100), setZoom: value => { setFitCanvas(value === 0); if (value) setZoom(value); },
+    }}/>;
+  }
+
+  function imageInputForCreate() {
+    return <input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/jpg,image/webp" className="hidden" onChange={handleImageFileSelected}/>;
+  }
+
+  return (
+    <main className="communication-builder letter-builder flex min-h-[calc(100dvh-88px)] flex-col bg-[#f5f5f5]">
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/jpg,image/webp"
+        className="hidden"
+        onChange={handleImageFileSelected}
+      />
+      <div className="sticky top-[89px] z-30 shrink-0 border-b border-[#d1d1d1] lg:top-0 lg:z-40">
+      <div className="bg-white px-3 sm:px-4 xl:px-7">
+        <div className="flex min-h-12 flex-wrap items-center gap-2 py-1.5">
+          <div className="flex max-w-full items-center gap-1 overflow-x-auto border border-[#d1d1d1] bg-[#f3f2f1] p-1">
+            {(["File", "Insert", "Format", "Layout", "Review", "View"] as const).map((tab) => <button key={tab} type="button" onClick={() => { setActiveRibbon(tab); setToolDrawerOpen((open) => activeRibbon === tab ? !open : true); }} className={["h-8 px-2.5 text-xs font-semibold transition-all", activeRibbon === tab && toolDrawerOpen ? "bg-white text-[#0f548c] shadow-[inset_0_-2px_0_#0f6cbd]" : "text-slate-600 hover:bg-white hover:text-slate-900"].join(" ")}>{tab}</button>)}
+          </div>
+          <button type="button" onClick={() => setAiComposerOpen(true)} title="Open Steward AI writer" className="flex h-8 w-8 shrink-0 items-center justify-center border border-[#9cc5e8] bg-[#eff6fc] text-sm font-bold text-[#0f548c] transition hover:bg-white" aria-label="Open Steward AI writer">✦</button>
+          <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
+            <span aria-live="polite" className="text-xs font-semibold text-slate-600">{printedPageStatus}</span>
+            <span className={[
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
+              saveFailure ? "text-red-700" : dirty ? "text-[#5c3b00]" : "text-[#0f548c]",
+              saveFailure ? "border-red-200 bg-red-50" : dirty ? "border-[#e1b96a] bg-[#fff4ce]" : "border-[#9cc5e8] bg-[#eff6fc]",
+            ].join(" ")}
+            >
+              <span className={["h-1.5 w-1.5 rounded-full", saveFailure ? "bg-red-500" : dirty ? "bg-[#d29200]" : "bg-[#0f6cbd]"].join(" ")} aria-hidden="true" />
+              {saving ? "Saving..." : saveFailure ? "Save failed - recovery ready" : dirty ? "Unsaved changes" : "All changes saved"}
+            </span>
+            <span title={localChecklistReady ? "Ready for server preflight" : `${localChecklist.filter((item) => !item.ok).length} item${localChecklist.filter((item) => !item.ok).length === 1 ? "" : "s"} to review`} className={["hidden border px-2 py-1 text-[11px] font-semibold xl:inline", localChecklistReady ? "border-[#9cc5e8] bg-[#eff6fc] text-[#0f548c]" : "border-[#e1b96a] bg-[#fff4ce] text-[#5c3b00]"].join(" ")}>{localChecklistReady ? "Ready" : "Review"}</span>
+            {notice ? <span className="hidden max-w-64 truncate text-xs font-semibold text-[#0f548c] 2xl:inline">{notice}</span> : null}
+            <IconButton label="Zoom out" onClick={() => { setFitCanvas(false); setZoom(Math.max(25, Math.round(canvasScale * 100) - 10)); }}>-</IconButton>
+            <span className="w-12 text-center text-xs font-semibold text-slate-600">{Math.round(canvasScale * 100)}%</span>
+            <IconButton label="Zoom in" onClick={() => { setFitCanvas(false); setZoom(Math.min(160, Math.round(canvasScale * 100) + 10)); }}>+</IconButton>
+            <IconButton label="Undo" onClick={undoBody} disabled={history.length === 0}>↶</IconButton>
+            <IconButton label="Redo" onClick={redoBody} disabled={future.length === 0}>↷</IconButton>
+            <Button onClick={() => setTestConstituentLookupOpen(true)}>{selectedTestConstituent ? personName(selectedTestConstituent) : "Test recipient"}</Button>
+            <Button onClick={addPage}>Add Page</Button>
+            <Button onClick={() => void openServerPdfPreview()} disabled={editorPdfLoading}>{editorPdfLoading ? "Rendering..." : editorPdfStale ? "Refresh PDF" : "Preview"}</Button>
+            <Button onClick={() => void save()} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
+            <Button onClick={() => void saveAndPublish()} tone="primary" disabled={saving}>Review & publish</Button>
+          </div>
+        </div>
+      </div>
+      {toolDrawerOpen ? ribbonTools(activeRibbon) : null}
+      </div>
+      {error ? <Alert tone="amber">{error}</Alert> : null}
+      {editorPdfError && !editorPdfOpen ? <Alert tone="amber">{editorPdfError}</Alert> : null}
+      <div className="letters-ribbon-mobile-tabs" role="group" aria-label="Builder panels">{(["write", "blocks", "settings"] as const).map(panel => <button key={panel} type="button" aria-pressed={mobileBuilderPanel === panel} onClick={() => setMobileBuilderPanel(panel)}>{panel === "write" ? <FileText size={15} aria-hidden="true" /> : panel === "blocks" ? <LayoutGrid size={15} aria-hidden="true" /> : <SlidersHorizontal size={15} aria-hidden="true" />}{titleCase(panel)}</button>)}</div>
+      <div className="letter-legacy-grid grid min-h-0 flex-1 grid-cols-1 gap-5 p-4 lg:grid-cols-[224px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_300px] lg:gap-6 lg:overflow-hidden lg:p-5 xl:p-6">
+        <aside data-mobile-panel="blocks" data-mobile-active={mobileBuilderPanel === "blocks"} aria-label="Letter blocks" className="order-1 max-h-[34dvh] min-h-0 overflow-y-auto rounded-[18px] border border-white/90 bg-white/90 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none">
+          {blockLibrary}
+        </aside>
+        {letterCanvas}
+        <aside data-mobile-panel="settings" data-mobile-active={mobileBuilderPanel === "settings"} aria-label="Letter settings" className="order-3 max-h-[40dvh] min-h-0 overflow-y-auto rounded-[18px] border border-white/90 bg-white/90 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:col-span-2 xl:col-span-1 xl:order-none xl:max-h-none">
+          <div className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-slate-200/80 bg-white/95 p-2 backdrop-blur">
+            {(["Document", "Merge Fields", "Block Settings"] as const).map((tab) => <button key={tab} type="button" onClick={() => openInspector(tab)} className={["h-8 rounded-lg px-2.5 text-[11px] font-semibold transition-all", inspectorTab === tab ? "bg-indigo-50 text-indigo-800 shadow-sm ring-1 ring-indigo-100" : "text-slate-600 hover:bg-slate-50"].join(" ")}>{tab}</button>)}
+          </div>
+          {inspectorTools(inspectorTab)}
+        </aside>
+      </div>
+      {editorDialogs}
     </main>
   );
 }
@@ -8054,6 +8368,7 @@ function titleCase(value: string): string {
 }
 
 function pageSizeToMetrics(value: string): { width: number; height: number } {
+  if (value.includes("Half Letter")) return { width: 528, height: 816 };
   if (value.includes("Legal")) return { width: 816, height: 1344 };
   if (value.includes("A4")) return { width: 794, height: 1123 };
   return { width: 816, height: 1056 };

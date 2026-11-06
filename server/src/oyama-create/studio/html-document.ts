@@ -12,12 +12,12 @@ const e=escapeHtml;
 const canonical=(html:string)=>DomUtils.getOuterHTML(parseDocument(html));
 
 /** Authoring HTML never resolves recipient fields. Studio-only blocks remain recognizable markers. */
-function nodeHtml(node:StudioNode,primary:string):string{
+export function nodeHtml(node:StudioNode,primary:string):string{
   const a=node.attrs||{},children=()=>node.content?.map(child=>nodeHtml(child,primary)).join("")||"";
   const style=[a.textAlign?`text-align:${a.textAlign}`:"",a.indent?`margin-left:${Number(a.indent)*12}pt`:"",a.spacing!==undefined?`margin-bottom:${Number(a.spacing)}pt`:"",a.keepTogether?"break-inside:avoid":"",a.keepWithNext?"break-after:avoid":"",["studioCallout","studioImpact"].includes(node.type)?`background:${string(a.color)||"#edf4fc"};padding:12pt;border-left:3pt solid ${primary}`:"",["tableCell","tableHeader"].includes(node.type)?`${a.background?`background:${a.background};`:""}border:1px solid ${string(a.borderColor)||"#c7d3df"}`:""].filter(Boolean).join(";");
   const attr=style?` style="${e(style)}"`:"";
-  if(node.type==="text"){
-    let html=e(node.text||"");
+  if(node.type==="text"||node.type==="mergeField"){
+    let html=e(node.type==="mergeField"?string(a.rawToken):node.text||"");
     for(const mark of node.marks||[]){const tag=({bold:"strong",italic:"em",underline:"u",strike:"s",code:"code",superscript:"sup",subscript:"sub"} as Record<string,string>)[mark.type];
       if(tag)html=`<${tag}>${html}</${tag}>`;
       if(mark.type==="link")html=`<a href="${e(string(mark.attrs?.href))}">${html}</a>`;
@@ -25,7 +25,6 @@ function nodeHtml(node:StudioNode,primary:string):string{
       if(mark.type==="highlight")html=`<span style="background-color:${e(string(mark.attrs?.color)||"#fff2b2")}">${html}</span>`;
     }return html;
   }
-  if(node.type==="mergeField")return e(string(a.rawToken));
   if(node.type==="hardBreak")return "<br>";
   const tag=({paragraph:"p",blockquote:"blockquote",bulletList:"ul",orderedList:"ol",listItem:"li",table:"table",tableRow:"tr",tableCell:"td",tableHeader:"th",studioGroup:"div",studioCallout:"div",studioImpact:"div"} as Record<string,string>)[node.type]||(node.type==="heading"?`h${Number(a.level)||2}`:"");
   if(tag)return `<${tag}${attr}${["td","th"].includes(tag)?` colspan="${Number(a.colspan)||1}" rowspan="${Number(a.rowspan)||1}"`:""}>${children()}</${tag}>`;
@@ -58,6 +57,20 @@ function sourceParts(design:StudioDesign,brand:BrandDocument,scope:HtmlScope,hyd
 export function exportHtmlDocument(design:StudioDesign,brand:BrandDocument,scope:HtmlScope="SHARED",hydrated=design){
   const {parts}=sourceParts(design,brand,scope,hydrated);
   return '<!doctype html>\n<html>\n<body>\n<!-- Region and Studio block markers preserve page furniture and configured CRM blocks. -->\n'+[...parts].map(([key,html])=>`<${key==="body"?"main":"div"} data-oyama-region="${key}">\n${html}\n</${key==="body"?"main":"div"}>`).join("\n\n")+'\n</body>\n</html>';
+}
+
+export const CLASSIC_REGIONS = ["body", ...regions, "replySlip"] as const;
+export type ClassicRegion = typeof CLASSIC_REGIONS[number];
+export function classicRegionHtml(design: StudioDesign, brand: BrandDocument, hydrated = design): Record<ClassicRegion, string> {
+  const { parts } = sourceParts(design, brand, "LETTER", hydrated);
+  return {
+    body: parts.get("body") || "",
+    firstHeader: design.regions.firstHeader.mode === "custom" ? parts.get("firstHeader") || "" : "",
+    header: design.regions.header.mode === "custom" ? parts.get("header") || "" : "",
+    firstFooter: design.regions.firstFooter.mode === "custom" ? parts.get("firstFooter") || "" : "",
+    footer: design.regions.footer.mode === "custom" ? parts.get("footer") || "" : "",
+    replySlip: parts.get("replySlip") || "",
+  };
 }
 
 export function importHtmlDocument(design:StudioDesign,brand:BrandDocument,html:string,scope:HtmlScope="SHARED",hydrated=design){

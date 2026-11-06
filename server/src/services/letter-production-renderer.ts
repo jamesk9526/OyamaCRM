@@ -116,6 +116,7 @@ function renderLetterChromeHtml(snapshot: Pick<LetterSnapshot, "branding" | "ass
 /** Called only by the dedicated production worker. Every browser has a hard lifetime. */
 export async function renderProductionLetter(snapshot: LetterSnapshot): Promise<{ bytes: Buffer; pageCount: number; warnings: string[] }> {
   if (snapshot.blockers.length) throw new Error(snapshot.blockers.join("; "));
+  if (snapshot.classic) return (await import("../oyama-create/classic-print.js")).renderFrozenClassicLetter(snapshot);
   if (snapshot.studio) return (await import("../oyama-create/studio/print.js")).renderFrozenStudio(snapshot.studio);
   const headerTemplate = letterChromeHtml(snapshot, false);
   const footerTemplate = letterChromeHtml(snapshot, true);

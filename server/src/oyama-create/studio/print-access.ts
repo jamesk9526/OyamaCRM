@@ -5,7 +5,7 @@ import {can} from "../access.js";
 import {object} from "../domain.js";
 
 export async function assertStudioPrintAccess(req:Request,snapshot:unknown){
-  if(object(object(snapshot).studio).sensitive===true&&!await can(req,"letters.view_sensitive_merge_data"))throw new ProductionError(403,"Sensitive donor output requires letters.view_sensitive_merge_data permission.");
+  if([object(object(snapshot).studio),object(object(snapshot).classic)].some(profile=>profile.sensitive===true)&&!await can(req,"letters.view_sensitive_merge_data"))throw new ProductionError(403,"Sensitive donor output requires letters.view_sensitive_merge_data permission.");
 }
 export async function assertStudioArtifactAccess(req:Request,org:string,id:string){
   const job=await prisma.letterRenderJob.findFirst({where:{id,organizationId:org},select:{snapshotJson:true}});

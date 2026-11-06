@@ -1,8 +1,9 @@
 import { Router } from "express";
+import { classicWorkingCopy } from "./classic-letter.js";
 import { prisma } from "../lib/prisma.js";
 import { json } from "../services/letter-production.js";
 import { route, param } from "./http.js";
-import { can, assertCampaign, demandChannels, touchCampaign } from "./access.js";
+import { can, assertCampaign, demand, demandChannels, touchCampaign } from "./access.js";
 import { CreateError, object, string } from "./domain.js";
 import { demandImportAdmin, ensureImport, inventory, sourceAccess, reconcileSource, importCommunication } from "./import-service.js";
 import { emailRecordAccessible, nativeRecord } from "./legacy.js";
@@ -58,7 +59,7 @@ router.get("/imports/sources/:id",route(async(req,res,org)=>{
 router.post("/imports/sources/:id/reconcile",route(async(req,res,org)=>{
   const source=await accessibleSource(req,org,param(req),true),choice=string(req.body.choice);
   if(!["KEEP_CREATE","USE_SOURCE"].includes(choice)||req.body.confirm!==true||req.body.fingerprint!==source.fingerprint)throw new CreateError(409,"Refresh the comparison and confirm your choice.");
-  await reconcileSource(req,source,choice as "KEEP_CREATE"|"USE_SOURCE",req.body.campaignRevision);res.json({reviewed:true});
+  await reconcileSource(req,source,choice as "KEEP_CREATE"|"USE_SOURCE",req.body.campaignRevision,req.body.contentRevision);res.json({reviewed:true});
 }));
 router.post("/imports/sources/:id/use",route(async(req,res,org,actor)=>{
   const source=await accessibleSource(req,org,param(req),true);
@@ -75,8 +76,19 @@ router.post("/imports/sources/:id/use",route(async(req,res,org,actor)=>{
 router.post("/imports/sources/:id/review",route(async(req,res,org,actor)=>{
   const source=await accessibleSource(req,org,param(req),true);
   if(req.body.confirm!==true||source.fingerprint!==req.body.fingerprint||!source.contentId||!source.campaignId)throw new CreateError(409,"Refresh and compare the original conversion first.");
-  await assertCampaign(req,source.campaignId,true);
+  const campaign = await assertCampaign(req,source.campaignId,true);
   const content=await prisma.createContent.findFirst({where:{id:source.contentId,organizationId:org}});
+  const working = source.sourceType === "LETTER" && content ? await classicWorkingCopy(org, content.id) : null;
+  if (working && content) {
+    if (campaign.status !== "DRAFT" || content.revision !== req.body.contentRevision) throw new CreateError(409, "Review the current draft Letter before accepting its source.");
+    await demand(req, "letters.edit");
+    await prisma.$transaction(async tx => {
+      await touchCampaign(tx, org, campaign.id, req.body.campaignRevision);
+      await tx.createImportSource.update({ where: { id: source.id }, data: { status: "CONVERTED", acceptedFingerprint: source.fingerprint } });
+      await tx.auditLog.create({ data: { organizationId: org, userId: actor, action: "CREATE_CONVERSION_REVIEWED", entity: "CreateImportSource", entityId: source.id, metadata: { fingerprint: source.fingerprint, contentRevision: content.revision } } });
+    });
+    res.json({ reviewed: true }); return;
+  }
   if(!content?.designJson||content.revision!==req.body.contentRevision)throw new CreateError(409,"The draft changed. Compare the current conversion again.");
   const design=normalizeDesign(content.designJson);
   for(const node of [design.body,...Object.values(design.channels||{}).map(item=>item.document)].flatMap(walkNodes))if(node.type==="studioHtml"&&node.attrs){node.attrs.html=sanitizeStudioHtml(string(node.attrs.html));node.attrs.reviewedHtml=node.attrs.sourceRevisionId||node.attrs.html;}

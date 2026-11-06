@@ -62,6 +62,12 @@ function createPrismaClient(): PrismaClient {
         params.args.where = { ...where, closedAt: null };
       }
     }
+    if (params.model === "LetterTemplate" && (constituentReadActions.has(params.action) || ["findUniqueOrThrow", "findFirstOrThrow", "update", "updateMany", "delete", "deleteMany", "upsert"].includes(params.action))) {
+      params.args ??= {};
+      const where = params.args.where ?? {};
+      // Create's working copies are only addressable through their owning content.
+      if (typeof where.createContentId !== "string") params.args.where = { ...where, createContentId: null };
+    }
     return next(params);
   });
 

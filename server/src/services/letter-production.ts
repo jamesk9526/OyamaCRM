@@ -4,7 +4,7 @@ import path from "node:path";
 import { Prisma } from "@prisma/client";
 import { PDFDocument } from "pdf-lib";
 import { prisma } from "../lib/prisma.js";
-import { LETTER_RENDERER_VERSION, record, string, productionLayout, addressFingerprint, type LetterSnapshot } from "./letter-production-contract.js";
+import { CLASSIC_LETTER_RENDERER_VERSION, LETTER_RENDERER_VERSION, record, string, productionLayout, addressFingerprint, type LetterSnapshot } from "./letter-production-contract.js";
 import { sanitizeLetterHtml } from "./letter-production-renderer.js";
 import { managedPublicMedia } from "../lib/public-media.js";
 
@@ -75,10 +75,11 @@ export async function buildProductionSnapshot(input: { organizationId: string; t
 }
 
 export async function enqueueSnapshot(snapshot: LetterSnapshot, actorId: string) {
-  const fingerprint = digest(JSON.stringify({ renderer: LETTER_RENDERER_VERSION, snapshot }));
+  const rendererVersion = snapshot.classic ? CLASSIC_LETTER_RENDERER_VERSION : LETTER_RENDERER_VERSION;
+  const fingerprint = digest(JSON.stringify({ renderer: rendererVersion, snapshot }));
   return prisma.letterRenderJob.upsert({ where: { organizationId_fingerprint: { organizationId: snapshot.organizationId, fingerprint } }, update: {}, create: {
     organizationId: snapshot.organizationId, generatedLetterId: snapshot.generatedLetterId, fingerprint,
-    rendererVersion: LETTER_RENDERER_VERSION, snapshotJson: json(snapshot), createdBy: actorId,
+    rendererVersion, snapshotJson: json(snapshot), createdBy: actorId,
   } });
 }
 

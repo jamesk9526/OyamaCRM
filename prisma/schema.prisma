@@ -655,6 +655,7 @@ model CreateVariant {
   legacyId       String?
   legacyFingerprint String?
   nativeApproved Boolean  @default(false)
+  letterAdaptationJson Json?
   updatedAt      DateTime @updatedAt
   content        CreateContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
   @@unique([contentId, channel])
@@ -869,6 +870,7 @@ model OrganizationSettings {
   organizationId              String   @unique
   oyamaCreateV5ShellEnabled Boolean @default(false)
   oyamaCreateUnifiedEditorEnabled Boolean @default(false)
+  oyamaCreateClassicLettersEnabled Boolean @default(false)
   oyamaCreateStudioEnabled     Boolean  @default(false)
   oyamaCreateBrandHubEnabled   Boolean  @default(false)
   createBrandPublicBaselineId String?
@@ -2949,6 +2951,7 @@ model LetterSignatureBlock {
 
 model LetterTemplate {
   id               String               @id @default(cuid())
+  createContentId  String?              @unique
   revision         Int                  @default(0)
   documentSchemaVersion Int             @default(1)
   documentJson     Json?

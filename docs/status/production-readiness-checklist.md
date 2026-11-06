@@ -1,4 +1,17 @@
-## Create v5 unified workspace rollout gate — 2026-11-06
+## Create v5 classic Letters rollout gate — 2026-11-06
+
+- [x] Add a Create-owned working copy and keep the original template available from the standalone Letters workspace.
+- [x] Put the classic canvas and exact PDF proof in the v5 shell. Keep digital editors and require reviewed conversion updates.
+- [x] Verify the additive migration and concurrent saves in an isolated MariaDB schema. Verify classic output geometry and raster parity on synthetic fixtures.
+- [x] Pass the focused Create regression run and direct migration/conversion cases, and inspect all four supplied screen sizes with synthetic records.
+- [ ] Complete the final production rebuild, HTTP/standalone-browser rerun and seeded database merge/email suites with permitted test execution. Resolve the local older empty migration directory before testing a full migration-chain install.
+- [ ] Apply `20261106040000_create_classic_letters` on staging. Deploy compatible API readers and print workers before enabling the classic Letters flag.
+- [ ] Review representative CRM originals and prior Studio drafts with authorized staff. Include donor headers, gifts and households, unusual fonts and artwork, attached and separate slips, envelopes, and partially used label sheets.
+- [ ] Complete physical printing and printer alignment, test verified delivery providers separately, and rehearse rollback before making the pilot the default.
+
+[Verification, screenshots, and golden outputs](audit-artifacts/2026-11-06-create-classic-letters/verification.md)
+
+## Create v5 unified workspace baseline rollout gate — 2026-11-06
 
 - [x] Preserve the supplied capability checklist in a destination/service/permission/test/status matrix and retain standalone routes and prior uncommitted improvements.
 - [x] Implement the v5 pinned shell, independent scroll regions, clamped accessible docks, local view preferences, command palette, six ribbon tabs, responsive overlays and all Create navigation destinations.
@@ -12,7 +25,9 @@
 
 [Implementation, rollout and rollback](../plans/oyama-create-v5-implementation.md) · [Verification and screenshots](audit-artifacts/2026-11-06-create-v5/verification.md)
 
-## Create / original Letters compatibility — 2026-11-05
+## Original Letters compatibility baseline — 2026-11-05
+
+The classic Letters rollout gate above governs the current Create workflow.
 
 - [x] Reuse the actual original Letters editor/canvas for editable imported letters inside Create; keep Studio accessible and flush pending edits on switching.
 - [x] Refresh source bindings after original saves without silently overwriting upgraded Studio edits; keep the comparison/reconciliation flow.

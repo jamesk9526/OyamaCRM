@@ -13,7 +13,7 @@ export function givingPeriod(design: StudioDesign, fiscalStart = 1) {
   const start = normalizeFiscalYearStart(fiscalStart);
   return design.data.period === "fiscal" ? getFiscalYearRange(design.data.year + (start === 1 ? 0 : 1), start) : getYearRange(design.data.year);
 }
-export async function resolveStudioDonor(req: Request, campaign: CreateCampaign, design: StudioDesign, constituentId?: string, asOf = new Date()): Promise<DonorContext> {
+export async function resolveStudioDonor(req: Request, campaign: CreateCampaign, design: StudioDesign, constituentId?: string, asOf = new Date(), proofGiftId?: string): Promise<DonorContext> {
   const org = campaign.organizationId, context = emptyDonor(asOf.toISOString());
   const settings = await prisma.organizationSettings.findUnique({ where: { organizationId: org } });
   context.currency=settings?.currency||"USD";
@@ -44,18 +44,19 @@ export async function resolveStudioDonor(req: Request, campaign: CreateCampaign,
   Object.assign(context.mergeValues!, { "staff.fullName": staff ? `${staff.firstName} ${staff.lastName}`.trim() : "", "staff.title": staff?.jobTitle || req.user!.role?.toUpperCase() || "", "staff.email": staff?.email || "" });
   if (!context.sensitiveAllowed) return context;
   const period = givingPeriod(design, settings?.fiscalYearStart || 1);
-  const selectedId = design.data.giftSelections[person.id];
+  const selected = !!proofGiftId || design.data.giftPolicy === "selected";
+  const selectedId = proofGiftId || design.data.giftSelections[person.id];
   const [gifts, selectedGift, lastGift, largestGift, pledges, recurring] = await Promise.all([
     prisma.donation.findMany({ where: { constituentId: person.id, constituent: { organizationId: org }, status: "COMPLETED", date: period }, orderBy: [{ date: "asc" }, { id: "asc" }], include: { designation: true, campaign: true, event: true }, take: 5001 }),
-    design.data.giftPolicy === "selected" && selectedId ? prisma.donation.findFirst({ where: { id: selectedId, constituentId: person.id, constituent: { organizationId: org }, status: "COMPLETED" }, include: { designation: true, campaign: true, event: true } }) : null,
+    selected && selectedId ? prisma.donation.findFirst({ where: { id: selectedId, constituentId: person.id, constituent: { organizationId: org }, status: "COMPLETED" }, include: { designation: true, campaign: true, event: true } }) : null,
     prisma.donation.findFirst({ where: { constituentId: person.id, constituent: { organizationId: org }, status: "COMPLETED" }, orderBy: [{ date: "desc" }, { id: "desc" }], include: { designation: true, campaign: true, event: true } }),
     prisma.donation.findFirst({ where: { constituentId: person.id, constituent: { organizationId: org }, status: "COMPLETED" }, orderBy: [{ amount: "desc" }, { id: "desc" }] }),
     prisma.pledge.findMany({ where: { constituentId: person.id, constituent: { organizationId: org }, active: true, ...(campaign.fundraisingCampaignId ? { campaignId: campaign.fundraisingCampaignId } : {}) }, orderBy: { endDate: "asc" }, take: 501 }),
     prisma.donation.findFirst({ where: { constituentId: person.id, constituent: { organizationId: org }, status: "COMPLETED", isRecurring: true }, select: { id: true } }),
   ]);
   if (gifts.length > 5000 || pledges.length > 500) throw new CreateError(422, "This recipient has too many records for one proof. Narrow the giving period or campaign before review.");
-  if (selectedId && design.data.giftPolicy === "selected" && !selectedGift) throw new CreateError(422, "The selected gift is unavailable, belongs to another recipient, or is not completed.");
-  const gift = design.data.giftPolicy === "selected" ? selectedGift : lastGift;
+  if (selectedId && selected && !selectedGift) throw new CreateError(422, "The selected gift is unavailable, belongs to another recipient, or is not completed.");
+  const gift = selected ? selectedGift : lastGift;
   const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: context.currency }).format(value);
   const date = (value: Date | undefined | null) => value ? value.toLocaleDateString("en-US", { timeZone: "UTC" }) : "";
   Object.assign(context.mergeValues!, {

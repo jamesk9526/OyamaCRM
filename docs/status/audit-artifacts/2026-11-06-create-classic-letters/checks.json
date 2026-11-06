@@ -1,0 +1,149 @@
+{
+  "synthetic": true,
+  "main": {
+    "tests": 303,
+    "passed": 303,
+    "failed": 0,
+    "files": 21,
+    "suites": [
+      {
+        "file": "tests/api/create-automatic-import.test.ts",
+        "status": "passed",
+        "tests": 27
+      },
+      {
+        "file": "tests/api/create-studio-workflow.test.ts",
+        "status": "passed",
+        "tests": 21
+      },
+      {
+        "file": "tests/api/create-trash.api.test.ts",
+        "status": "passed",
+        "tests": 6
+      },
+      {
+        "file": "tests/api/create-v5-workspace.test.ts",
+        "status": "passed",
+        "tests": 7
+      },
+      {
+        "file": "tests/api/oyama-create-workflow.test.ts",
+        "status": "passed",
+        "tests": 31
+      },
+      {
+        "file": "tests/unit/create-classic-letters.test.ts",
+        "status": "passed",
+        "tests": 5
+      },
+      {
+        "file": "tests/unit/create-email-document.test.ts",
+        "status": "passed",
+        "tests": 8
+      },
+      {
+        "file": "tests/unit/create-import-conversion.test.ts",
+        "status": "passed",
+        "tests": 11
+      },
+      {
+        "file": "tests/unit/create-legacy-catalog.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/create-letter-fidelity.test.ts",
+        "status": "passed",
+        "tests": 7
+      },
+      {
+        "file": "tests/unit/create-routing.test.ts",
+        "status": "passed",
+        "tests": 21
+      },
+      {
+        "file": "tests/unit/create-studio-block-actions.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/create-studio-block-preview.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/create-studio-html-document.test.ts",
+        "status": "passed",
+        "tests": 11
+      },
+      {
+        "file": "tests/unit/create-studio-selection.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/create-studio.test.ts",
+        "status": "passed",
+        "tests": 62
+      },
+      {
+        "file": "tests/unit/create-v5-contracts.test.ts",
+        "status": "passed",
+        "tests": 8
+      },
+      {
+        "file": "tests/unit/letters-merge.test.ts",
+        "status": "passed",
+        "tests": 19
+      },
+      {
+        "file": "tests/unit/oyama-create.test.ts",
+        "status": "passed",
+        "tests": 30
+      },
+      {
+        "file": "tests/unit/oyama-email-letter-conversion.test.ts",
+        "status": "passed",
+        "tests": 1
+      },
+      {
+        "file": "tests/unit/oyama-email-render-service.test.ts",
+        "status": "passed",
+        "tests": 16
+      }
+    ]
+  },
+  "finalReview": {
+    "tests": 31,
+    "passed": 31,
+    "failed": 0,
+    "files": 4
+  },
+  "types": {
+    "web": "passed",
+    "server": "passed"
+  },
+  "mainBuild": {
+    "web": "passed",
+    "serverEmit": "passed"
+  },
+  "databaseMigrationTests": 11,
+  "browser": {
+    "viewports": [
+      "1600x950",
+      "1280x780",
+      "900x720",
+      "430x790"
+    ],
+    "outcome": "passed before final review changes"
+  },
+  "pending": [
+    "Final production rebuild with permitted filesystem access",
+    "Seeded CRM merge/email API suites",
+    "Final HTTP and standalone browser rerun",
+    "Staging real-letter and physical printing acceptance",
+    "Configured delivery-provider acceptance"
+  ],
+  "finalLint": "passed on all changed TypeScript and React files",
+  "finalBuild": "blocked by sandbox EPERM while creating a generated route directory"
+}

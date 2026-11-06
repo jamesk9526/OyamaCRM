@@ -36,6 +36,7 @@ export interface ResolveMergeContextInput {
   eventId?: string;
   year?: number;
   actorUserId?: string;
+  asOf?: Date;
 }
 
 export interface ResolveMergeContextOutput {
@@ -291,7 +292,7 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
     : null;
 
   const targetYear = Math.max(2000, Math.min(3000, params.year ?? new Date().getFullYear()));
-  const currentDate = new Date();
+  const currentDate = params.asOf ?? new Date();
   const yearStart = new Date(`${targetYear}-01-01T00:00:00.000Z`);
   const yearEnd = new Date(`${targetYear}-12-31T23:59:59.999Z`);
 

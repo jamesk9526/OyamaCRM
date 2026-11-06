@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { Request } from "express";
 import { randomBytes, randomUUID } from "node:crypto";
-import type { CreateCampaign, CreateContent, CreateVariant } from "@prisma/client";
+import type { CreateCampaign, CreateContent, CreateVariant, LetterTemplate } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { json, buildProductionSnapshot, productionEnabled } from "../services/letter-production.js";
 import type { LetterSnapshot } from "../services/letter-production-contract.js";
@@ -18,6 +18,12 @@ import { CreateError, documentFrom, object, publicCopySafe, renderShared, varian
 import { metaAccount } from "./providers.js";
 import { compactStudioAssets } from "./studio/frozen-assets.js";
 import { prepareStudioRelease, freezeStudioRecipient, type FrozenStudio } from "./studio/release.js";
+import { classicEnabled, classicWorkingCopy } from "./classic-letter.js";
+import { classicLetterIssues, freezeClassicArtifacts, letterProofInputs } from "./classic-print.js";
+import { readLetterAdaptation } from "./letter-adaptations.js";
+import { normalizeDesign } from "./studio/design.js";
+import { plainText } from "./studio/render.js";
+import { renderProductionLetter } from "../services/letter-production-renderer.js";
 const router = Router();
 export type FrozenVariant = { channel: Channel; revision: number; format: VariantDocument; html: string; text: string; nativeFingerprint: string | null; sourceSharing?: { ownerId: string | null; sharedWithOrganization: boolean }; email?: { name: string; subject: string; purpose: string; previewText: string | null; fromName: string; fromEmail: string; replyToEmail: string | null; bodyHtml: string | null; bodyText: string | null; templateJson: string | null }; letterBase?: LetterSnapshot };
 export type FrozenContent = { id: string; name: string; revision: number; scheduledAt: string; document: SharedDocument; variants: FrozenVariant[]; studio?: FrozenStudio };
@@ -26,6 +32,8 @@ export type ReleaseSnapshot = { assetBundle?:Record<string,string>; version: 1; 
 export async function readiness(campaign: CreateCampaign, contents: Array<CreateContent & { variants: CreateVariant[] }>, actor: string, freeze = false, request?: Request) {
   const org = campaign.organizationId, channels = (campaign.channelsJson as Channel[]).filter(channel=>contents.some(content=>content.variants.some(variant=>variant.channel===channel&&variantFrom(variant.documentJson).enabled!==false)));
   const contentPlans:Record<string,AudiencePlan>={};
+  const classicLetters = new Map<string, LetterTemplate>();
+  const pilot = channels.includes("LETTER") && await classicEnabled(org);
   const issues: Array<{ channel: string; message: string }> = []; const frozen: FrozenContent[] = [];
   if (campaign.isTemplate) issues.push({ channel: "ALL", message: "Use this template to create a campaign before approval." });
   if (campaign.status === "HISTORICAL") issues.push({ channel: "ALL", message: "Historical content is read-only. Duplicate it into a new campaign." });
@@ -41,13 +49,52 @@ export async function readiness(campaign: CreateCampaign, contents: Array<Create
     const pieceChannels=channels.filter(channel=>content.variants.some(variant=>variant.channel===channel&&variantFrom(variant.documentJson).enabled!==false));
     const piecePlan=pieceChannels.length===channels.length?plan:await resolvePlan(org,campaign.audienceListIds as string[],pieceChannels,campaign.deliveryMode as DeliveryMode|null,campaign.objective);contentPlans[content.id]=piecePlan;
     if(!pieceChannels.length)issues.push({channel:"ALL",message:`${content.name}: include at least one format for this content piece.`});
-    if (content.designJson) {
-      if (!request) throw new CreateError(403, "Studio review requires an authenticated staff request.");
-      const prepared = await prepareStudioRelease(request, campaign, content, piecePlan.recipients); issues.push(...prepared.issues); frozen.push(prepared.item); continue;
-    }
+    const letterVariant = content.variants.find(variant => variant.channel === "LETTER");
+    const working = letterVariant ? await classicWorkingCopy(org, content.id) : null;
+    const classic = pieceChannels.includes("LETTER") && (pilot || !!working);
+    const digitalChannels = classic ? pieceChannels.filter(channel => channel !== "LETTER") : pieceChannels;
     const document = documentFrom(content.documentJson);
     const item: FrozenContent = { id: content.id, name: content.name, revision: content.revision, document, scheduledAt: (content.scheduledAt || campaign.startsAt || new Date()).toISOString(), variants: [] };
-    for (const channel of pieceChannels) {
+    if (working) {
+      for (const variant of content.variants.filter(row => pieceChannels.includes(row.channel as Channel))) {
+        const adaptation = readLetterAdaptation(variant.letterAdaptationJson);
+        if (adaptation && adaptation.letterRevision !== working.revision) issues.push({ channel: variant.channel, message: `${content.name}: review the latest Letter update or keep this format's current copy.` });
+      }
+    }
+    if (classic && !working) issues.push({ channel: "LETTER", message: `${content.name}: save the Letter in the classic canvas before approval.` });
+    if (classic && working && letterVariant) {
+      if (!request) throw new CreateError(403, "Letter review requires an authenticated staff request.");
+      const inputs = letterProofInputs(working, content.designJson ? normalizeDesign(content.designJson) : null);
+      const preflight = classicLetterIssues(inputs);
+      const report = (message: string) => issues.push({ channel: "LETTER", message: `${content.name}: ${message}` });
+      if (!inputs.config.reviewed) report("Compare and review the migrated Letter.");
+      if (!plainText(working.printBody).trim() && !/<img\b/i.test(working.printBody)) report("Enter Letter content.");
+      if (preflight.sensitive) await demand(request, "letters.view_sensitive_merge_data");
+      preflight.blockers.forEach(report);
+      const native = await nativeRecord(org, letterVariant, prisma, true);
+      const pending = await prisma.createImportSource.findFirst({ where: { organizationId: org, contentId: content.id, sourceType: "LETTER", status: { in: ["NEEDS_REVIEW", "SOURCE_CHANGED", "FAILED"] } } });
+      if (pending || native && native.fingerprint !== letterVariant.legacyFingerprint) report("Review the preserved original or its latest source changes.");
+      if (!preflight.blockers.length) {
+        const recipient = piecePlan.recipients.find(person => person.channel === "LETTER");
+        try {
+          const proofs = await freezeClassicArtifacts(request, campaign, inputs, { templateId: working.id, revision: content.revision, asOf: new Date(),
+            constituentId: recipient?.member.constituentId || undefined, sample: !recipient });
+          for (const { snapshot } of proofs) if (snapshot.classic) await renderProductionLetter(snapshot);
+        } catch (error) {
+          if (error instanceof CreateError && error.status === 403) throw error;
+          report(error instanceof Error ? error.message : "Check the Letter print proof.");
+        }
+      }
+      classicLetters.set(content.id, working);
+      item.variants.push({ channel: "LETTER", revision: working.revision, format: variantFrom(letterVariant.documentJson), html: working.printBody, text: plainText(working.printBody), nativeFingerprint: native?.fingerprint || null });
+    }
+    if (content.designJson && digitalChannels.length) {
+      if (!request) throw new CreateError(403, "Studio review requires an authenticated staff request.");
+      const prepared = await prepareStudioRelease(request, { ...campaign, channelsJson: digitalChannels }, content,
+        piecePlan.recipients.filter(recipient => digitalChannels.includes(recipient.channel)), classic);
+      issues.push(...prepared.issues); frozen.push({ ...prepared.item, variants: [...item.variants, ...prepared.item.variants] }); continue;
+    }
+    for (const channel of digitalChannels) {
       const variant = content.variants.find(row => row.channel === channel);
       if (!variant) { issues.push({ channel, message: `${content.name}: create this format.` }); continue; }
       const format = variantFrom(variant.documentJson); const native = await nativeRecord(org, variant).catch(error => { issues.push({ channel, message: error.message }); return null; });
@@ -96,7 +143,7 @@ export async function readiness(campaign: CreateCampaign, contents: Array<Create
   }
   const totals:Record<string,number>={EMAIL:0,LETTER:0,SMS:0};for(const piece of Object.values(contentPlans))for(const [channel,count] of Object.entries(piece.counts))totals[channel]=(totals[channel]||0)+count;
   for(const content of frozen)for(const variant of content.variants)if(variant.format.requiresLandingPage&&frozen.filter(piece=>piece.variants.some(format=>format.channel==="WEB")).length!==1)issues.push({channel:variant.channel,message:"A dependent message requires exactly one selected landing page in this release."});
-  return { issues, plan:{...plan,counts:totals}, frozen, contentPlans };
+  return { issues, plan:{...plan,counts:totals}, frozen, contentPlans, classicLetters };
 }
 router.get("/campaigns/:id/readiness", route(async (req, res, org, actor) => {
   const campaign = await assertCampaign(req, param(req));
@@ -120,14 +167,28 @@ router.post("/campaigns/:id/approve", route(async (req, res, org, actor) => {
   const snapshot: ReleaseSnapshot = { version: 1, campaign: { id: campaign.id, name: campaign.name, objective: campaign.objective, revision: campaign.revision, fundraisingCampaignId: campaign.fundraisingCampaignId, eventId: campaign.eventId }, contents: prepared.frozen, audience: { total: prepared.plan.total, overlap: prepared.plan.overlap, excluded: prepared.plan.excluded, counts: prepared.plan.counts } };
   const jobs: Array<{ contentId: string; channel: Channel; recipientKey: string; scheduledAt: Date; payloadJson: ReturnType<typeof json> }> = [];
   const releaseId = randomUUID(), responses: Array<{organizationId:string;code:string;lookupKey:string;releaseId:string;contentId:string;constituentId:string|null;channel:string;payloadJson:ReturnType<typeof json>}> = [];
+  const asOf = new Date(), letterAssets = new Map<string, Promise<string>>();
+  let printPosition = 0;
   for (const content of contents) {
     const frozen = prepared.frozen.find(item => item.id === content.id)!;
     const scheduledAt = (channel: Channel) => new Date(frozen.variants.find(variant => variant.channel === channel)?.format.scheduledAt || frozen.scheduledAt);
     for (const recipient of prepared.contentPlans[content.id].recipients) {
+      const classic = recipient.channel === "LETTER" ? prepared.classicLetters.get(content.id) : undefined;
+      if (classic) {
+        const code = randomBytes(18).toString("base64url");
+        const inputs = letterProofInputs(classic, content.designJson ? normalizeDesign(content.designJson) : null);
+        const selectedGift = inputs.design?.data.giftPolicy === "selected" ? inputs.design.data.giftSelections[recipient.member.constituentId || ""] : undefined;
+        const artifacts = await freezeClassicArtifacts(req, campaign, inputs, { templateId: classic.id, revision: content.revision, constituentId: recipient.member.constituentId || undefined,
+          donationId: selectedGift, asOf, sample: false, cache: letterAssets, responseCode: code });
+        if (inputs.design?.data.givingUrl) responses.push({ organizationId: org, code, lookupKey: fingerprint([org,campaign.id,campaign.revision,content.id,recipient.channel,recipient.key]), releaseId, contentId: content.id,
+          constituentId: recipient.member.constituentId, channel: "LETTER", payloadJson: json({ givingUrl: inputs.design.data.givingUrl, frequency: inputs.design.data.frequency, designation: inputs.design.data.designation, financialCampaignId: campaign.fundraisingCampaignId }) });
+        jobs.push({ contentId: content.id, channel: "LETTER", recipientKey: recipient.key, scheduledAt: scheduledAt("LETTER"), payloadJson: json({ member: recipient.member, studio: { artifacts }, printPosition: printPosition++ }) });
+        continue;
+      }
       if (frozen.studio) {
         const code = randomBytes(18).toString("base64url"), resolved = await freezeStudioRecipient(req, campaign, frozen, recipient, code);
         responses.push({ organizationId: org, code, lookupKey: fingerprint([org,campaign.id,campaign.revision,content.id,recipient.channel,recipient.key]), releaseId, contentId:content.id, constituentId:recipient.member.constituentId, channel:recipient.channel, payloadJson:json({ givingUrl:frozen.studio.design.data.givingUrl, frequency:frozen.studio.design.data.frequency, designation:frozen.studio.design.data.designation, financialCampaignId:campaign.fundraisingCampaignId }) });
-        jobs.push({contentId:content.id,channel:recipient.channel,recipientKey:recipient.key,scheduledAt:scheduledAt(recipient.channel),payloadJson:json({member:recipient.member,studio:resolved})});continue;
+        jobs.push({contentId:content.id,channel:recipient.channel,recipientKey:recipient.key,scheduledAt:scheduledAt(recipient.channel),payloadJson:json({member:recipient.member,studio:resolved,...(recipient.channel==="LETTER"?{printPosition:printPosition++}:{})})});continue;
       }
       let letter: Partial<LetterSnapshot> | null = null;
       if (recipient.channel === "LETTER") {
@@ -149,7 +210,8 @@ router.post("/campaigns/:id/approve", route(async (req, res, org, actor) => {
     if (!claimed.count) throw new CreateError(409, "Campaign content changed during review. Reload and review again.");
     for (const content of contents) for (const variant of content.variants) {
       const frozenVariant=prepared.frozen.find(piece=>piece.id===content.id)?.variants.find(item=>item.channel===variant.channel);
-      const current = await nativeRecord(org, variant, tx, !!content.designJson&&!frozenVariant?.nativeFingerprint);
+      if (!frozenVariant) continue;
+      const current = await nativeRecord(org, variant, tx, (!!content.designJson || prepared.classicLetters.has(content.id)) && !frozenVariant.nativeFingerprint);
       if (current && current.fingerprint !== variant.legacyFingerprint) throw new CreateError(409, "A native layout changed during review. Review the new version first.");
     }
     const existing = await tx.createRelease.findUnique({ where: { campaignId_campaignRevision: { campaignId: campaign.id, campaignRevision: campaign.revision } } });

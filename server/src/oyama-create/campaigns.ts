@@ -11,6 +11,8 @@ import { hasDefaultPermission, PERMISSION_KEYS } from "../lib/permissions.js";
 import { convertLegacy } from "./studio/conversion.js";
 import { normalizeDesign } from "./studio/design.js";
 import { copyStudioSources } from "./studio/copy-sources.js";
+import { classicConfig, classicWorkingCopy } from "./classic-letter.js";
+import { readLetterAdaptation } from "./letter-adaptations.js";
 const router = Router();
 
 function campaignInput(raw: unknown) {
@@ -45,7 +47,7 @@ router.get("/bootstrap", route(async (req, res, org) => {
   const permissions = PERMISSION_KEYS.filter(key => overrides.find(row => row.permission === key)?.granted ?? hasDefaultPermission(req.user!.role, key));
   if (!["view:communications", "letters.view", "view:campaigns"].some(key => permissions.includes(key as typeof permissions[number]))) throw new CreateError(403, "Communications, letters, or fundraising access is required.");
   const settings = await prisma.organizationSettings.findUnique({ where: { organizationId: org } });
-  res.json({ enabled: settings?.oyamaCreateEnabled === true, studioEnabled: settings?.oyamaCreateStudioEnabled === true, shellEnabled: settings?.oyamaCreateV5ShellEnabled === true, unifiedEditorEnabled: settings?.oyamaCreateUnifiedEditorEnabled === true, brandHubEnabled: settings?.oyamaCreateBrandHubEnabled === true, permissions, capabilities: CHANNELS.map(channel => ({ channel, available: true, requiresConnection: ["SMS", "SOCIAL"].includes(channel), previews: channel === "EMAIL" ? ["desktop", "mobile", "plain-text"] : channel === "LETTER" ? ["pdf"] : ["content"] })) });
+  res.json({ enabled: settings?.oyamaCreateEnabled === true, studioEnabled: settings?.oyamaCreateStudioEnabled === true, shellEnabled: settings?.oyamaCreateV5ShellEnabled === true, unifiedEditorEnabled: settings?.oyamaCreateUnifiedEditorEnabled === true, classicLettersEnabled: settings?.oyamaCreateClassicLettersEnabled === true, brandHubEnabled: settings?.oyamaCreateBrandHubEnabled === true, permissions, capabilities: CHANNELS.map(channel => ({ channel, available: true, requiresConnection: ["SMS", "SOCIAL"].includes(channel), previews: channel === "EMAIL" ? ["desktop", "mobile", "plain-text"] : channel === "LETTER" ? ["pdf"] : ["content"] })) });
 }));
 router.put("/config", route(async (req, res, org) => {
   await demand(req, "create.connections.manage");
@@ -79,7 +81,13 @@ router.post("/campaigns", route(async (req, res, org, actor) => {
 router.get("/campaigns/:id", route(async (req, res, org) => {
   const campaign = await assertCampaign(req, param(req));
   const contents = await prisma.createContent.findMany({ where: { campaignId: campaign.id, organizationId: org }, include: { variants: true }, orderBy: { createdAt: "asc" } });
-  const items = await Promise.all(contents.map(async content => ({ ...content, variants: await Promise.all(content.variants.map(async variant => ({ ...variant, externalChanges: await nativeChanged(org, variant).catch(() => true) }))) })));
+  const items = await Promise.all(contents.map(async content => {
+    const letter = content.variants.some(variant => variant.channel === "LETTER") ? await classicWorkingCopy(org, content.id) : null;
+    return { ...content, classicLetter: !!letter, variants: await Promise.all(content.variants.map(async ({ letterAdaptationJson, ...variant }) => {
+      const adaptation = readLetterAdaptation(letterAdaptationJson);
+      return { ...variant, letterLinked: !!adaptation, letterUpdateAvailable: !!adaptation && !!letter && adaptation.letterRevision !== letter.revision, externalChanges: await nativeChanged(org, variant).catch(() => true) };
+    })) };
+  }));
   const releases = await prisma.createRelease.findMany({ where: { campaignId: campaign.id, organizationId: org }, orderBy: { approvedAt: "desc" }, take: 20, select: { id: true, status: true, campaignRevision: true, approvedAt: true, approvedBy: true } });
   res.json({ ...campaign, ...(await isTrashed(org, "CAMPAIGN", campaign.id) ? { trashed: true, status: "HISTORICAL" } : {}), contents: items, releases });
 }));
@@ -104,10 +112,20 @@ router.post("/campaigns/:id/duplicate", route(async (req, res, org, actor) => {
   const result = await prisma.$transaction(async tx => {
     const campaign = await tx.createCampaign.create({ data: { organizationId: org, ownerId: actor, name: required(req.body.name, "Campaign name"), objective: source.objective, description: source.description, channelsJson: json(source.channelsJson), audienceListIds: json([]), deliveryMode: source.deliveryMode, isTemplate: req.body.isTemplate === true, fundraisingCampaignId: source.fundraisingCampaignId, eventId: source.eventId } });
     for (const item of contents) {
+      const working = item.variants.some(variant => variant.channel === "LETTER") ? await classicWorkingCopy(org, item.id, tx) : null;
       const design = item.designJson ? normalizeDesign(item.designJson) : null;
       if(design){design.data.giftSelections={};design.email.reviewedSource=null;}
       const content = await tx.createContent.create({ data: { campaignId: campaign.id, organizationId: org, name: item.name, documentJson: json(item.documentJson), ...(design?{designJson:json(design)}:{}) } });
-      await tx.createDocumentRevision.create({ data: { organizationId: org, contentId: content.id, revision: 1, documentJson: json(item.documentJson), createdBy: actor } });
+      const classicCopy = working ? {
+        config: { ...classicConfig(working), settings: { ...classicConfig(working).settings, giftSelections: undefined }, reviewed: false, diagnostics: ["Review the recipient proof for this copied Letter."] },
+        template: { name: item.name, printBody: working.printBody, printSubject: working.printSubject, printLayoutJson: working.printLayoutJson },
+      } : null;
+      if (working && classicCopy) await tx.letterTemplate.create({ data: {
+        organizationId: org, createContentId: content.id, revision: 1, createdByUserId: actor, name: item.name,
+        description: working.description, category: working.category, printBody: working.printBody, printSubject: working.printSubject,
+        emailBody: working.emailBody, emailSubject: working.emailSubject, printLayoutJson: json(working.printLayoutJson), documentJson: json(classicCopy.config),
+      } });
+      await tx.createDocumentRevision.create({ data: { organizationId: org, contentId: content.id, revision: 1, documentJson: json(classicCopy ? { shared: item.documentJson, studio: design, classicLetter: classicCopy } : item.documentJson), createdBy: actor } });
       let convertedCopy=design;
       for (const variant of item.variants) {
         let legacyId: string | null = null;
@@ -115,11 +133,11 @@ router.post("/campaigns/:id/duplicate", route(async (req, res, org, actor) => {
           const native = await tx.emailCampaign.findFirst({ where: { organizationId: org, id: variant.legacyId } });
           if (native) legacyId = (await tx.emailCampaign.create({ data: { organizationId: org, name: item.name, subject: native.subject, purpose: native.purpose, fromName: native.fromName, fromEmail: native.fromEmail, replyToEmail: native.replyToEmail, bodyHtml: native.bodyHtml, bodyText: native.bodyText, templateJson: JSON.stringify({ ...object(remapManagedCopy(parseStored(native.templateJson), item.id, content.id)), ownerId: actor, sharedWithOrganization: false }) } })).id;
         }
-        if (variant.channel === "LETTER" && variant.legacyId) {
+        if (variant.channel === "LETTER" && variant.legacyId && !working) {
           const native = await tx.letterTemplate.findFirst({ where: { organizationId: org, id: variant.legacyId, crmScope: "DONOR" } });
           if (native) legacyId = (await tx.letterTemplate.create({ data: { organizationId: org, name: item.name, printBody: object(remapManagedCopy({ printBody: native.printBody }, item.id, content.id)).printBody as string, printSubject: native.printSubject, printLayoutJson: json(native.printLayoutJson), documentJson: json(remapManagedCopy(native.documentJson, item.id, content.id)), documentSchemaVersion: native.documentSchemaVersion, headerPresetId: native.headerPresetId, footerPresetId: native.footerPresetId, signatureBlockId: native.signatureBlockId, createdByUserId: actor } })).id;
         }
-        if(variant.channel==="LETTER"&&!legacyId&&design)legacyId=(await tx.letterTemplate.create({data:{organizationId:org,name:item.name,printBody:"",createdByUserId:actor,crmScope:"DONOR"}})).id;
+        if(variant.channel==="LETTER"&&!legacyId&&design&&!working)legacyId=(await tx.letterTemplate.create({data:{organizationId:org,name:item.name,printBody:"",createdByUserId:actor,crmScope:"DONOR"}})).id;
         const nativeCopy=legacyId?await nativeRecord(org,{channel:variant.channel,legacyId},tx):null;
         if(!convertedCopy&&nativeCopy){
           const originalSource=await tx.createImportSource.findFirst({where:{organizationId:org,sourceId:variant.legacyId!,sourceType:variant.channel}});
@@ -127,9 +145,11 @@ router.post("/campaigns/:id/duplicate", route(async (req, res, org, actor) => {
           const conversion=convertLegacy(nativeCopy.record,nativeCopy.kind,revision?.id||"");convertedCopy=conversion.design;
           if(revision)convertedCopy.presentation={...convertedCopy.presentation,sourceRevisionId:revision.id};
         }
-        await tx.createVariant.create({ data: { organizationId: org, contentId: content.id, channel: variant.channel, documentJson: json({ ...variantFrom(variant.documentJson), scheduledAt: null }), legacyId, legacyFingerprint:nativeCopy?.fingerprint||null, needsReview: !!legacyId } });
+        const adaptation = working ? readLetterAdaptation(variant.letterAdaptationJson) : null;
+        await tx.createVariant.create({ data: { organizationId: org, contentId: content.id, channel: variant.channel, documentJson: json({ ...variantFrom(variant.documentJson), scheduledAt: null }), legacyId, legacyFingerprint:nativeCopy?.fingerprint||null, needsReview: !!legacyId,
+          ...(adaptation ? { letterAdaptationJson: json({ ...adaptation, letterRevision: adaptation.letterRevision === working?.revision ? 1 : 0 }) } : {}) } });
       }
-      if(convertedCopy){await copyStudioSources(req,tx,org,actor,campaign.id,content.id,convertedCopy);await tx.createContent.update({where:{id:content.id},data:{designJson:json(convertedCopy)}});await tx.createDocumentRevision.updateMany({where:{contentId:content.id,revision:1},data:{documentJson:json({shared:content.documentJson,studio:convertedCopy})}});}
+      if(convertedCopy){await copyStudioSources(req,tx,org,actor,campaign.id,content.id,convertedCopy);await tx.createContent.update({where:{id:content.id},data:{designJson:json(convertedCopy)}});await tx.createDocumentRevision.updateMany({where:{contentId:content.id,revision:1},data:{documentJson:json({shared:content.documentJson,studio:convertedCopy,...(classicCopy?{classicLetter:classicCopy}:{})})}});}
     }
     return campaign;
   }); res.status(201).json(result);

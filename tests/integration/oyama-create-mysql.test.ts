@@ -14,12 +14,14 @@ describe.skipIf(!url)("oyamaCreate MySQL migration and contention", () => {
     const [tables] = await connection.query("SHOW TABLES");
     if ((tables as unknown[]).length) throw new Error("The disposable schema must be empty. No existing tables will be removed.");
     await connection.query("CREATE TABLE OrganizationSettings (id VARCHAR(191) PRIMARY KEY, organizationId VARCHAR(191) NOT NULL UNIQUE)");
+    await connection.query("CREATE TABLE LetterTemplate (id VARCHAR(191) PRIMARY KEY, organizationId VARCHAR(191) NOT NULL, revision INTEGER NOT NULL DEFAULT 0, printBody LONGTEXT NOT NULL)");
     const migration = await readFile("prisma/migrations/20261103140000_oyama_create/migration.sql", "utf8");
     await connection.query(migration);
     await connection.query(await readFile("prisma/migrations/20261103200000_create_studio/migration.sql", "utf8"));
     await connection.query(await readFile("prisma/migrations/20261104120000_create_recoverable_trash/migration.sql", "utf8"));
     await connection.query(await readFile("prisma/migrations/20261104210000_create_automatic_import/migration.sql", "utf8"));
     await connection.query(await readFile("prisma/migrations/20261106030000_create_v5_workspace/migration.sql", "utf8"));
+    await connection.query(await readFile("prisma/migrations/20261106040000_create_classic_letters/migration.sql", "utf8"));
     second = await mysql.createConnection(url!);
     await connection.execute("INSERT INTO CreateCampaign (id, organizationId, name, ownerId, audienceListIds, channelsJson, updatedAt) VALUES (?, 'synthetic', 'Synthetic concurrency test', 'synthetic', '[]', '[\"EMAIL\"]', NOW(3))", [prefix]);
   });
@@ -46,6 +48,19 @@ describe.skipIf(!url)("oyamaCreate MySQL migration and contention", () => {
   it("keeps Studio and Brand Hub defaults disabled", async () => {
     const [rows]=await connection.execute("SELECT oyamaCreateStudioEnabled,oyamaCreateBrandHubEnabled FROM OrganizationSettings WHERE id=?",[prefix]);
     expect((rows as Array<{oyamaCreateStudioEnabled:number;oyamaCreateBrandHubEnabled:number}>)[0]).toMatchObject({oyamaCreateStudioEnabled:0,oyamaCreateBrandHubEnabled:0});
+  });
+  it("allows one Create-owned working Letter and one guarded revision winner", async () => {
+    const [settings] = await connection.execute("SELECT oyamaCreateClassicLettersEnabled FROM OrganizationSettings WHERE id=?", [prefix]);
+    expect((settings as unknown[])[0]).toMatchObject({ oyamaCreateClassicLettersEnabled: 0 });
+    await connection.execute("INSERT INTO LetterTemplate (id,organizationId,printBody) VALUES (?, 'synthetic', 'Original body'), (?, 'synthetic', 'Another original')", [`${prefix}-original`, `${prefix}-other`]);
+    const create = "INSERT INTO LetterTemplate (id,organizationId,createContentId,revision,printBody) VALUES (?, 'synthetic', ?, 1, 'Working copy')";
+    const outcomes = await Promise.allSettled([connection.execute(create, [`${prefix}-copy-1`, prefix]), second.execute(create, [`${prefix}-copy-2`, prefix])]);
+    expect(outcomes.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    const edit = "UPDATE LetterTemplate SET revision=revision+1, printBody=? WHERE organizationId='synthetic' AND createContentId=? AND revision=1";
+    const winners = await Promise.all([connection.execute(edit, ["First Create edit", prefix]), second.execute(edit, ["Second Create edit", prefix])]);
+    expect(winners.map(([result]) => (result as mysql.ResultSetHeader).affectedRows).sort()).toEqual([0, 1]);
+    const [originals] = await connection.execute("SELECT printBody FROM LetterTemplate WHERE organizationId='synthetic' AND createContentId IS NULL ORDER BY id");
+    expect(originals).toEqual([{ printBody: "Original body" }, { printBody: "Another original" }]);
   });
   it("keeps v5 opt-in and guards shared notes without changing campaign revisions", async () => {
     const [settings] = await connection.execute("SELECT oyamaCreateV5ShellEnabled, oyamaCreateUnifiedEditorEnabled FROM OrganizationSettings WHERE id=?", [prefix]);

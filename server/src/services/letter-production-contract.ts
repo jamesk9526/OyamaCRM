@@ -1,5 +1,15 @@
 /** Portable, frozen inputs. No renderer is allowed to look up current CRM data. */
 export const LETTER_RENDERER_VERSION = "chromium-letters-v2.1";
+export const CLASSIC_LETTER_RENDERER_VERSION = "classic-letters-v1";
+export type FrozenClassicLetter = {
+  version: 1;
+  branding: import("../routes/letters.js").LetterPdfBrandingContext;
+  presets: import("../routes/letters.js").LetterPdfPresetContext;
+  logoSource: string;
+  printLayout: unknown;
+  sensitive: boolean;
+  sample: boolean;
+};
 export interface LetterSnapshot {
   version: 2;
   organizationId: string;
@@ -21,6 +31,7 @@ export interface LetterSnapshot {
   warnings: string[];
   blockers: string[];
   studio?: import("../oyama-create/studio/types.js").FrozenStudioPrint;
+  classic?: FrozenClassicLetter;
 }
 export function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};

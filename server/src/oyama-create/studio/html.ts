@@ -42,7 +42,7 @@ export function restoreLegacyLogoBounds(html: string, logoUrl: string) {
 }
 
 /** Shared by conversion, validation and rendering. Originals are kept separately, never executed. */
-export function sanitizeStudioHtml(html: string): string {
+export function sanitizeStudioHtml(html: string, classicMarkers = false): string {
   const serialize = (node: HtmlNode): string => {
     if (node.type === "text") return escapeHtml(node.data);
     if (!("attribs" in node) || !tags.has(node.name)) {
@@ -52,12 +52,13 @@ export function sanitizeStudioHtml(html: string): string {
     const attributes: string[] = [];
     for (const [key, raw] of Object.entries(node.attribs)) {
       let value = raw;
-      if (["href", "src"].includes(key)) value = safeUrl(raw, key === "src");
+      if (["href", "src"].includes(key)) value = classicMarkers && key === "src" && raw.length <= 1_500_000 && /^data:image\/(png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(raw) ? raw : safeUrl(raw, key === "src");
       else if (key === "style") value = raw.split(";").map(part => {
         const colon = part.indexOf(":"), name = part.slice(0, colon).trim().toLowerCase(), item = part.slice(colon + 1).trim();
         return colon > 0 && css.has(name) && !/url\s*\(|expression|@|[<>\\\x00-\x1f]/i.test(item) ? `${name}:${item}` : "";
       }).filter(Boolean).join(";");
-      else if (!["alt", "title", "width", "height", "colspan", "rowspan", "align", "valign", "cellpadding", "cellspacing", "border", "bgcolor", "role", "start", "data-letter-page-break", "data-letter-spacer", "data-studio-page-number", "data-studio-total-pages", "data-letter-signature", "data-keep-together"].includes(key)) continue;
+      else if (!["alt", "title", "width", "height", "colspan", "rowspan", "align", "valign", "cellpadding", "cellspacing", "border", "bgcolor", "role", "start", "data-letter-page-break", "data-letter-spacer", "data-studio-page-number", "data-studio-total-pages", "data-letter-signature", "data-keep-together"].includes(key)
+        && !(classicMarkers && ["data-oyama-block", "data-letter-image-block", "data-letter-qr", "data-letter-qr-block", "data-letter-qr-destination", "data-letter-table", "data-letter-width"].includes(key))) continue;
       if(key.startsWith("data-")&&!value)value="true";
       if (value) attributes.push(`${key}="${escapeHtml(value)}"`);
     }

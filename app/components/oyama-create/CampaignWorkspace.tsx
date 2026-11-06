@@ -1,5 +1,4 @@
 "use client";
-import OriginalLetterCanvas from "./OriginalLetterCanvas";
 import OriginalSourceNames from "./OriginalSourceNames";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -21,13 +20,15 @@ import { channelNames, message, objectives, type Campaign, type Channel, type Re
 
 const PrintPack = dynamic(()=>import("./studio/PrintPack"),{ssr:false});
 const StudioWorkspace = dynamic(() => import("./studio/StudioWorkspace"), { ssr: false });
+const ClassicLetterWorkspace = dynamic(() => import("./ClassicLetterWorkspace"), { ssr: false });
 export default function CampaignWorkspace({ id }: { id: string }) {
-  const resource = useCreateData<Campaign>(`/api/oyama-create/campaigns/${id}`); const query = useSearchParams(); const router = useRouter(); const { permissions, enabled, studioEnabled, unifiedEditorEnabled } = useCreate();
-  const [originalCanvas, setOriginalCanvas] = useState(query.get("studio") !== "1");
+  const resource = useCreateData<Campaign>(`/api/oyama-create/campaigns/${id}`); const query = useSearchParams(); const router = useRouter(); const { permissions, enabled, studioEnabled, classicLettersEnabled } = useCreate();
   const [studioOpen, setStudioOpen] = useState<boolean|null>(query.get("studio") === "1" ? true : null);
   const [tab, setTab] = useState(query.get("tab") || "content"), [selected, setSelected] = useState(query.get("content") || ""), [format, setFormat] = useState<"SHARED" | Channel>("SHARED");
   const [opened, setOpened] = useState<Set<Channel>>(new Set()), [settings, setSettings] = useState(false), [newContent, setNewContent] = useState(false), [contentName, setContentName] = useState("");
   const [duplicate, setDuplicate] = useState(false), [duplicateName, setDuplicateName] = useState(""), [error, setError] = useState(""), [busy, setBusy] = useState(false);
+  const [convertChannel, setConvertChannel] = useState<Exclude<Channel, "LETTER">>();
+  const [lastDigital, setLastDigital] = useState<Exclude<Channel, "LETTER">>();
   const [dirties, setDirties] = useState<Record<string, boolean>>({}); const editorRefs = useRef<Record<string, EditorHandle | null>>({});
   const markDirty = useCallback((key: string, value: boolean) => setDirties(previous => previous[key] === value ? previous : { ...previous, [key]: value }), []);
   const sharedDirty = useCallback((value: boolean) => markDirty("SHARED", value), [markDirty]);
@@ -35,12 +36,20 @@ export default function CampaignWorkspace({ id }: { id: string }) {
   const saved = useCallback(async () => { await reload(); }, [reload]);
   const campaign = resource.data; const content = campaign?.contents?.find(item => item.id === selected) || campaign?.contents?.[0];
   const editable = !!campaign && !campaign.trashed && campaign.status !== "HISTORICAL" && campaign.channelsJson.every(channel => permissions.includes(channel === "LETTER" ? "letters.edit" : "edit:communications"));
-  const originalLetter = !unifiedEditorEnabled && content?.designJson?.version !== 4
-    ? content?.variants.find(variant => variant.channel === "LETTER" && variant.legacyId)
-    : undefined;
+  const classic = (classicLettersEnabled || content?.classicLetter) && content?.variants.some(variant => variant.channel === "LETTER") && campaign?.channelsJson.includes("LETTER");
+  const digitalFormat = lastDigital && campaign?.channelsJson.includes(lastDigital) && content?.variants.some(variant => variant.channel === lastDigital) ? lastDigital : undefined;
   async function flush() { for (const key of Object.keys(editorRefs.current)) if (dirties[key] && !await editorRefs.current[key]?.flush()) return false; return true; }
   async function changeTab(value: string) { if (await flush()) { setTab(value); if (value === "review") void resource.reload(); } }
   async function changeFormat(value: "SHARED" | Channel) { if (!await flush()) return; setFormat(value); if (value !== "SHARED") setOpened(previous => new Set([...previous, value])); }
+  async function chooseChannel(channel: Channel) {
+    if (!await flush()) return;
+    setFormat(channel); setConvertChannel(undefined);
+    if (channel !== "LETTER") setLastDigital(channel);
+  }
+  async function chooseContent(next: string) {
+    if (!await flush()) return;
+    setSelected(next); setOpened(new Set()); setFormat("SHARED"); setDirties({}); setLastDigital(undefined); setConvertChannel(undefined);
+  }
   async function addContent() { if (!campaign) return; setBusy(true); setError(""); try { const value = await apiFetch<{ id: string }>(`/api/oyama-create/campaigns/${id}/contents`, { method: "POST", body: JSON.stringify({ name: contentName, campaignRevision: campaign.revision, document: { version: 1, blocks: [] } }) }); await resource.reload(); setSelected(value.id); setNewContent(false); setContentName(""); setFormat("SHARED"); setOpened(new Set()); setDirties({}); } catch (error) { setError(message(error)); } finally { setBusy(false); } }
   async function copyCampaign() { setBusy(true); setError(""); try { const value = await apiFetch<Campaign>(`/api/oyama-create/campaigns/${id}/duplicate`, { method: "POST", body: JSON.stringify({ name: duplicateName, isTemplate: false }) }); router.push(`/oyama-create/campaigns/${value.id}`); } catch (error) { setError(message(error)); } finally { setBusy(false); } }
   if (!campaign) return resource.error ? <Empty title="Campaign could not load" action={<button className="oc-button" onClick={() => void resource.reload()}>Try again</button>}>{resource.error}</Empty> : <div className="oc-state" role="status">Loading campaign…</div>;
@@ -49,7 +58,21 @@ export default function CampaignWorkspace({ id }: { id: string }) {
     {error && <div className="oc-error" role="alert">{error}</div>}
     <nav className="oc-tabs" aria-label="Campaign workspace" style={{ marginTop: 16 }}>{["content", "audience", "review", "delivery", "results"].map(value => <button key={value} aria-current={tab === value ? "page" : undefined} onClick={() => void changeTab(value)}>{value === "review" ? "Review & approve" : value[0].toUpperCase() + value.slice(1)}</button>)}</nav>
     <CampaignGuidance tab={tab} onNavigate={value => void changeTab(value)}/>
-    <div hidden={tab !== "content"}>{content ? <><OriginalSourceNames contentId={content.id}/>{originalLetter&&<div className="oc-actions"><button type="button" className="oc-button" aria-pressed={originalCanvas} disabled={!editable} onClick={async()=>{if(await flush()){setOriginalCanvas(value=>!value);setDirties({});}}}>{originalCanvas?"Return to upgraded Create Studio":"Use original Letters canvas"}</button></div>}<div className="oc-content-nav"><label className="sr-only" htmlFor="oc-content-selector">Content piece</label><select id="oc-content-selector" value={content.id} onChange={async event => { const next = event.target.value; if (!await flush()) return; setSelected(next); setOpened(new Set()); setFormat("SHARED"); setDirties({}); }}>{campaign.contents?.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select><button className="oc-button small" disabled={!editable} onClick={async () => { if (await flush()) setNewContent(true); }}><Plus size={13}/>Add content piece</button></div><div className="oc-actions" style={{marginBottom:12}}>{<button className="oc-button primary" onClick={async()=>{if(await flush()){setOriginalCanvas(false);setStudioOpen(true);}}}>Open unified builder</button>}{(studioOpen || content.designJson || studioEnabled) && <button className="oc-button" onClick={async()=>{if(await flush()){setOriginalCanvas(false);setStudioOpen(false);}}}>Channel dates & other formats</button>}</div>{originalCanvas && editable && originalLetter?.legacyId ? <OriginalLetterCanvas key={content.id} ref={value=>{editorRefs.current.STUDIO=value;}} templateId={originalLetter.legacyId} onDirty={value=>markDirty("STUDIO",value)} onSaved={saved}/> : (studioOpen ?? true) ? <StudioWorkspace onSelectContent={async next=>{if(await flush()){setSelected(next);setDirties({});}}} onAddContent={async()=>{if(await flush())setNewContent(true);}} onCampaignSettings={async()=>{if(await flush())setSettings(true);}} active={tab==="content"} key={content.id} ref={value=>{editorRefs.current.STUDIO=value;}} content={content} campaign={campaign} onSaved={saved} onDirty={value=>markDirty("STUDIO",value)} onReview={()=>void changeTab("review")}/> : <><div className="oc-content-nav"><div className="oc-format-tabs" role="group" aria-label="Content format"><button aria-pressed={format === "SHARED"} onClick={() => void changeFormat("SHARED")}><Sparkles size={14}/>Shared copy</button>{campaign.channelsJson.map(channel => { const Icon = channelIcons[channel]; const variant = content.variants.find(item => item.channel === channel); return <button key={channel} aria-pressed={format === channel} onClick={() => void changeFormat(channel)}><Icon size={14}/>{channelNames[channel]}{(variant?.needsReview || variant?.externalChanges) && <small>Review</small>}</button>; })}</div></div>
+    <div hidden={tab !== "content"}>{content && classic ? <>
+      <ClassicLetterWorkspace key={content.id} active={tab === "content" && (!digitalFormat || format !== digitalFormat)} readonly={!editable || campaign.status !== "DRAFT"} notesReadonly={!editable} content={content} campaign={campaign}
+        ref={value => { editorRefs.current.CLASSIC = value; }} onSaved={saved} onDirty={value => markDirty("CLASSIC", value)}
+        onReview={() => void changeTab("review")} onAudience={() => void changeTab("audience")} onChannel={channel => void chooseChannel(channel)}
+        onSelectContent={next => void chooseContent(next)} onAddContent={async () => { if (await flush()) setNewContent(true); }}
+        onCampaignSettings={async () => { if (await flush()) setSettings(true); }} convertChannel={convertChannel} closeConversion={() => setConvertChannel(undefined)}/>
+      {digitalFormat && <div hidden={format !== digitalFormat}>
+        <StudioWorkspace key={content.id} active={tab === "content" && format === digitalFormat} content={content} campaign={campaign}
+          classicHost={{ channel: digitalFormat, onChannel: channel => void chooseChannel(channel), onLetterUpdate: async channel => {
+            if (await flush()) { setFormat("LETTER"); setConvertChannel(channel); }
+          } }} ref={value => { editorRefs.current.STUDIO = value; }} onSaved={saved} onDirty={value => markDirty("STUDIO", value)}
+          onReview={() => void changeTab("review")} onSelectContent={next => void chooseContent(next)} onAddContent={async () => { if (await flush()) setNewContent(true); }}
+          onCampaignSettings={async () => { if (await flush()) setSettings(true); }}/>
+      </div>}
+    </> : content ? <><OriginalSourceNames contentId={content.id}/><div className="oc-content-nav"><label className="sr-only" htmlFor="oc-content-selector">Content piece</label><select id="oc-content-selector" value={content.id} onChange={async event => { const next = event.target.value; if (!await flush()) return; setSelected(next); setOpened(new Set()); setFormat("SHARED"); setDirties({}); }}>{campaign.contents?.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select><button className="oc-button small" disabled={!editable} onClick={async () => { if (await flush()) setNewContent(true); }}><Plus size={13}/>Add content piece</button></div><div className="oc-actions" style={{marginBottom:12}}>{<button className="oc-button primary" onClick={async()=>{if(await flush()){setStudioOpen(true);}}}>Open unified builder</button>}{(studioOpen || content.designJson || studioEnabled) && <button className="oc-button" onClick={async()=>{if(await flush()){setStudioOpen(false);}}}>Channel dates & other formats</button>}</div>{(studioOpen ?? true) ? <StudioWorkspace onSelectContent={async next=>{if(await flush()){setSelected(next);setDirties({});}}} onAddContent={async()=>{if(await flush())setNewContent(true);}} onCampaignSettings={async()=>{if(await flush())setSettings(true);}} active={tab==="content"} key={content.id} ref={value=>{editorRefs.current.STUDIO=value;}} content={content} campaign={campaign} onSaved={saved} onDirty={value=>markDirty("STUDIO",value)} onReview={()=>void changeTab("review")}/> : <><div className="oc-content-nav"><div className="oc-format-tabs" role="group" aria-label="Content format"><button aria-pressed={format === "SHARED"} onClick={() => void changeFormat("SHARED")}><Sparkles size={14}/>Shared copy</button>{campaign.channelsJson.map(channel => { const Icon = channelIcons[channel]; const variant = content.variants.find(item => item.channel === channel); return <button key={channel} aria-pressed={format === channel} onClick={() => void changeFormat(channel)}><Icon size={14}/>{channelNames[channel]}{(variant?.needsReview || variant?.externalChanges) && <small>Review</small>}</button>; })}</div></div>
       <div hidden={format !== "SHARED"}><SharedEditor key={content.id} ref={value => { editorRefs.current.SHARED = value; }} content={content} campaign={campaign} onSaved={saved} onDirty={sharedDirty} readonly={!editable}/></div>
       {content.variants.filter(variant => opened.has(variant.channel)).map(variant => <div key={`${content.id}:${variant.channel}`} hidden={format !== variant.channel}><ChannelEditor ref={value => { editorRefs.current[variant.channel] = value; }} content={content} variant={variant} campaign={campaign} onSaved={saved} onDirty={value => markDirty(variant.channel, value)} readonly={!editable}/></div>)}
     </>}</> : <section className="oc-card"><Empty title="Give this campaign a voice" action={<button className="oc-button primary" disabled={!editable} onClick={() => setNewContent(true)}><Plus size={15}/>Add your first content piece</button>}>Select Add your first content piece and name the message, such as “Appeal” or “Reminder”. Then write your copy and check each selected format. Each piece can have its own delivery date.</Empty></section>}</div>

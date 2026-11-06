@@ -13,12 +13,13 @@ import { convertLegacy } from "./studio/conversion.js";
 import { readLegacyBrand, sanitizeBrandHtml } from "./studio/brand-service.js";
 import { assertStudioAssetOwnership } from "./studio/asset-ownership.js";
 import { managedAssetIssues } from "./studio/asset-files.js";
+import { classicEnabled, classicSourceEdit, classicWorkingCopy, persistClassicLetter, type ClassicLetterhead } from "./classic-letter.js";
 
 export const SOURCE_TYPES = ["EMAIL", "LETTER", "GENERATED_LETTER", "HEADER", "FOOTER", "SIGNATURE", "ASSET", "UPLOADS"] as const;
 export type SourceType = typeof SOURCE_TYPES[number];
 type SourceRecord = Record<string, unknown> & { id: string; name?: string; updatedAt?: Date; createdAt?: Date };
 export function sourceFingerprint(record:Record<string,unknown>){
-  const stable={...record};for(const key of ["updatedAt","delivered","opened","clicked","bounced","unsubscribed"])delete stable[key];return fingerprint(stable);
+  const stable={...record};for(const key of ["updatedAt","delivered","opened","clicked","bounced","unsubscribed","createContentId"])delete stable[key];return fingerprint(stable);
 }
 const sourceKey = (org: string, type: string, id: string) => ({ organizationId_sourceType_sourceId: { organizationId: org, sourceType: type, sourceId: id } });
 export function isExecution(email: Pick<EmailCampaign,"audienceFilter">) { return !!object(parseStored(email.audienceFilter))._create; }
@@ -79,7 +80,9 @@ export async function importCommunication(req: Request, org: string, actor: stri
     const signerId=(native.kind==="LETTER"&&native.record.signatureBlockId)||brand.defaultSignerId;
     if(signerId)converted.design.body.content.push({type:"studioSignature",attrs:{studioId:"import-signature",signerId}});
   }
-  const {source,revision,hash}=await snapshotSource(org,channel,native.record as unknown as SourceRecord,sharing.ownerId,sharing.sharedWithOrganization,{originalHtml:converted.originalHtml,brand});
+  const classicLetterhead = native.kind === "LETTER" && await classicEnabled(org)
+    ? await (await import("../routes/letters.js")).readClassicLetterhead(org, native.record, brand.identity) : undefined;
+  const {source,revision,hash}=await snapshotSource(org,channel,native.record as unknown as SourceRecord,sharing.ownerId,sharing.sharedWithOrganization,{originalHtml:converted.originalHtml,brand,classicLetterhead});
   converted.design.presentation={...converted.design.presentation,sourceRevisionId:revision.id};
   for(const node of converted.design.body.content)if(node.type==="studioHtml"&&node.attrs?.sourceRevisionId!==undefined)node.attrs.sourceRevisionId=revision.id;
   assertStudioAssetOwnership(org,converted.design); assertStudioAssetOwnership(org,brand);
@@ -211,7 +214,7 @@ export async function processImports(batchSize=25,scopeOrg?:string) {
 export function startImportWorker(){if(timer)return;timer=setInterval(()=>{if(processing||Date.now()<unavailableUntil)return;processing=true;void processImports().catch(error=>{if(error instanceof Prisma.PrismaClientKnownRequestError&&error.code==="P2021"){unavailableUntil=Date.now()+300000;console.warn("[Create import] Awaiting automatic-import migration.");}else console.error("[Create import]",error instanceof Error?error.message:"failed");}).finally(()=>{processing=false;});},3000);timer.unref();}
 export function stopImportWorker(){if(timer)clearInterval(timer);timer=null;}
 
-export async function reconcileSource(req:Request,source:CreateImportSource,choice:"KEEP_CREATE"|"USE_SOURCE",campaignRevision:number){
+export async function reconcileSource(req:Request,source:CreateImportSource,choice:"KEEP_CREATE"|"USE_SOURCE",campaignRevision:number,contentRevision?:number){
   if(!sourceAccess(req,source,true)||!source.contentId||!source.campaignId)throw new CreateError(403,"Only the owner or administrator can reconcile this source.");
   const campaign=await assertCampaign(req,source.campaignId,true);await demandChannels(req,campaign.channelsJson as ("EMAIL"|"LETTER")[],true);
   const revision=await prisma.createImportSourceRevision.findUnique({where:{sourceId_fingerprint:{sourceId:source.id,fingerprint:source.fingerprint!}}});
@@ -220,9 +223,19 @@ export async function reconcileSource(req:Request,source:CreateImportSource,choi
   const native=await nativeRecord(source.organizationId,{channel,legacyId:source.sourceId});
   if(!native||sourceFingerprint(native.record)!==source.fingerprint)throw new CreateError(409,"The source changed again. Refresh the comparison.");
   const converted=convertLegacy(record as unknown as EmailCampaign|LetterTemplate,channel,revision.id);converted.design.presentation={...converted.design.presentation,sourceRevisionId:revision.id};
+  const working = channel === "LETTER" ? await classicWorkingCopy(source.organizationId, source.contentId) : null;
+  if (working && campaign.status !== "DRAFT") throw new CreateError(409, "Duplicate this campaign before adopting changed Letter content.");
+  const letterhead = working && choice === "USE_SOURCE" && native.kind === "LETTER" ? (snapshot.classicLetterhead as ClassicLetterhead | undefined)
+    || await (await import("../routes/letters.js")).readClassicLetterhead(source.organizationId, native.record, object(snapshot.brand).identity) : null;
   await prisma.$transaction(async tx=>{
     await touchCampaign(tx,source.organizationId,campaign.id,campaignRevision);
-    if(choice==="USE_SOURCE"){
+    if(choice==="USE_SOURCE" && working && letterhead) {
+      const current = await tx.createContent.findFirstOrThrow({ where: { id: source.contentId!, organizationId: source.organizationId } });
+      if (current.revision !== contentRevision) throw new CreateError(409, "The working Letter changed. Refresh the source comparison.");
+      const edit = classicSourceEdit(current, record, letterhead);
+      edit.config.reviewed = false; edit.config.diagnostics.push("The changed original was adopted. Check its recipient PDF before approval.");
+      await persistClassicLetter(tx, current, req.user!.sub, edit, working);
+    } else if(choice==="USE_SOURCE"){
       const current=await tx.createContent.findUniqueOrThrow({where:{id:source.contentId!}}),old=current.designJson?normalizeDesign(current.designJson):null;
       let next=converted.design;
       if(old?.channels?.[channel]?.sourceRevisionId){next=old;next.channels![channel]={document:converted.design.body,reviewedSource:null,sourceRevisionId:revision.id,presentation:converted.design.presentation};if(channel==="EMAIL"){next.email.subject=converted.design.email.subject;next.email.previewText=converted.design.email.previewText;}}

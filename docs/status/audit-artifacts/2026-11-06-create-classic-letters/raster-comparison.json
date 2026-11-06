@@ -1,0 +1,27 @@
+[
+  {
+    "fixture": "short",
+    "page": "1",
+    "pixelIdentical": true
+  },
+  {
+    "fixture": "household-table",
+    "page": "1",
+    "pixelIdentical": true
+  },
+  {
+    "fixture": "household-table",
+    "page": "2",
+    "pixelIdentical": true
+  },
+  {
+    "fixture": "household-table",
+    "page": "3",
+    "pixelIdentical": true
+  },
+  {
+    "fixture": "organization",
+    "page": "1",
+    "pixelIdentical": true
+  }
+]

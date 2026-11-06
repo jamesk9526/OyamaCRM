@@ -7,6 +7,7 @@ import { demand, demandChannels, assertCampaign, touchCampaign } from "./access.
 import { route, param } from "./http.js";
 import { CHANNELS, CreateError, documentFrom, renderShared, required, string, variantFrom, type Channel } from "./domain.js";
 import { adaptationIssues, nativeChanged, nativeRecord, syncNative } from "./legacy.js";
+import { usesClassicLetter } from "./classic-letter.js";
 
 const router = Router();
 export async function contentFor(req: Parameters<typeof assertCampaign>[0], id: string, manage = false) {
@@ -28,6 +29,7 @@ router.post("/campaigns/:id/contents", route(async (req, res, org, actor) => {
 }));
 router.patch("/contents/:id", route(async (req, res, org, actor) => {
   const { content, campaign } = await contentFor(req, param(req), true); await demandChannels(req, campaign.channelsJson as Channel[], true);
+  if (await usesClassicLetter(content)) throw new CreateError(409, "Edit this content in the classic Letter or its digital format.");
   if(content.designJson)throw new CreateError(409,"This content uses Studio. Edit its shared design in oyamaCreate Studio to preserve its structure.");
   const document = documentFrom(req.body.document);
   const scheduledAt = req.body.scheduledAt ? new Date(string(req.body.scheduledAt)) : null;
@@ -55,7 +57,9 @@ router.patch("/contents/:id/variants/:channel", route(async (req, res, org, acto
   const variant = content.variants.find(row => row.channel === channel);
   if (!variant) throw new CreateError(404, "Channel version not found.");
   const format = variantFrom(req.body.document);
-  if(content.designJson && ["EMAIL","LETTER"].includes(channel)) {
+  const classicCampaign = await usesClassicLetter(content), classic = channel === "LETTER" && classicCampaign;
+  if (classicCampaign && campaign.status !== "DRAFT") throw new CreateError(409, "Duplicate this campaign before changing an approved schedule.");
+  if((content.designJson || classic) && ["EMAIL","LETTER"].includes(channel)) {
     const before=variantFrom(variant.documentJson);if(JSON.stringify({...before,scheduledAt:null,enabled:null})!==JSON.stringify({...format,scheduledAt:null,enabled:null}))throw new CreateError(409,"Edit structured letter/email content in Studio. This view can change channel delivery dates only.");
   }
   if (Object.keys(format.overrides).some(id => !documentFrom(content.documentJson).blocks.some(block => block.id === id))) throw new CreateError(400, "A customized block no longer exists in the shared document.");
@@ -65,7 +69,7 @@ router.patch("/contents/:id/variants/:channel", route(async (req, res, org, acto
     const changed = await tx.createVariant.updateMany({ where: { id: variant.id, revision: req.body.revision }, data: { documentJson: json(format), revision: { increment: 1 }, needsReview: external || variant.nativeApproved } });
     if (!changed.count) throw new CreateError(409, "This format changed in another session. Reload before retrying.");
     const item = await tx.createVariant.findUniqueOrThrow({ where: { id: variant.id } });
-    if (!content.designJson && item.legacyId && !external && !item.nativeApproved) await syncNative(tx, org, actor, content, item);
+    if (!classic && !content.designJson && item.legacyId && !external && !item.nativeApproved) await syncNative(tx, org, actor, content, item);
     return item;
   }); res.json({ ...saved, campaignRevision: campaign.revision + 1 });
 }));
@@ -81,6 +85,7 @@ router.get("/contents/:id/preview/:channel", route(async (req, res, org) => {
 }));
 router.post("/contents/:id/native/:channel", route(async (req, res, org, actor) => {
   const { content, campaign } = await contentFor(req, param(req), true); const channel = param(req, "channel") as Channel;
+  if (channel === "LETTER" && await usesClassicLetter(content)) throw new CreateError(409, "Open the classic Letter canvas to save this layout.");
   if(content.designJson)throw new CreateError(409,"This content uses the integrated Studio editor. Edit its letter or email view there.");
   if (!["EMAIL", "LETTER"].includes(channel) || !(campaign.channelsJson as Channel[]).includes(channel)) throw new CreateError(400, "Choose an email or letter version.");
   await demandChannels(req, [channel], true);
@@ -94,6 +99,7 @@ router.post("/contents/:id/native/:channel", route(async (req, res, org, actor) 
 }));
 router.post("/contents/:id/review/:channel", route(async (req, res, org, actor) => {
   const { content, campaign } = await contentFor(req, param(req), true); const channel = param(req, "channel") as Channel;
+  if (channel === "LETTER" && await usesClassicLetter(content)) throw new CreateError(409, "Review this Letter from its classic canvas and original source comparison.");
   const variant = content.variants.find(row => row.channel === channel);
   if (!variant) throw new CreateError(404, "Channel version not found.");
   await demandChannels(req, [channel], true);
@@ -118,6 +124,7 @@ router.get("/contents/:id/revisions", route(async (req, res, org) => {
 }));
 router.post("/contents/:id/proof", route(async (req, res, org, actor) => {
   const { content } = await contentFor(req, param(req)); await demand(req, "letters.export_pdf");
+  if (await usesClassicLetter(content)) throw new CreateError(409, "Render the current recipient PDF from the classic Letter canvas.");
   const variant = content.variants.find(item => item.channel === "LETTER");
   if (!variant?.legacyId) throw new CreateError(422, "Open the letter layout editor once before generating its PDF proof.");
   const native = await nativeRecord(org, variant);

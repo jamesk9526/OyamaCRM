@@ -82,4 +82,5 @@ OyamaBridgeDesktopServer/oyama-bridge-desktop-server-1.0.0.tgz
 
 /public/vendor/pdfjs/
 /apps/letters/public/vendor/pdfjs/
-/docs/status/audit-artifacts
+/docs/status/audit-artifacts/*
+!/docs/status/audit-artifacts/2026-11-06-create-classic-letters/

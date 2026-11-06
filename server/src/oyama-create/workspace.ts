@@ -33,7 +33,7 @@ router.post("/workspace/start", route(async (req, res, org, actor) => {
     const content = await tx.createContent.create({ data: { organizationId: org, campaignId: campaign.id, name: campaign.name, documentJson: json({ version: 1, blocks: [] }), designJson: json(design) } });
     for (const channel of start.channels) {
       const variant = await tx.createVariant.create({ data: { organizationId: org, contentId: content.id, channel, documentJson: json({ overrides: {}, scheduledAt: null, subject: "" }) } });
-      if (channel === "LETTER") await syncNative(tx, org, actor, content, variant);
+      if (channel === "LETTER" && !settings?.oyamaCreateClassicLettersEnabled) await syncNative(tx, org, actor, content, variant);
     }
     await tx.createDocumentRevision.create({ data: { organizationId: org, contentId: content.id, revision: 1, documentJson: json({ studio: design, shared: content.documentJson }), createdBy: actor } });
     return { campaignId: campaign.id, contentId: content.id };
@@ -43,17 +43,18 @@ router.post("/workspace/start", route(async (req, res, org, actor) => {
 router.get("/workspace/config", route(async (req, res, org) => {
   if (!await can(req, "letters.view") && !await can(req, "view:communications")) throw new CreateError(403, "Create access is required.");
   const settings = await prisma.organizationSettings.findUnique({ where: { organizationId: org } });
-  res.json({ shellEnabled: settings?.oyamaCreateV5ShellEnabled === true, unifiedEditorEnabled: settings?.oyamaCreateUnifiedEditorEnabled === true });
+  res.json({ shellEnabled: settings?.oyamaCreateV5ShellEnabled === true, unifiedEditorEnabled: settings?.oyamaCreateUnifiedEditorEnabled === true, classicLettersEnabled: settings?.oyamaCreateClassicLettersEnabled === true });
 }));
 router.put("/workspace/config", route(async (req, res, org, actor) => {
   await demand(req, "create.connections.manage");
   if (req.body.confirm !== true || typeof req.body.shellEnabled !== "boolean" || typeof req.body.unifiedEditorEnabled !== "boolean") throw new CreateError(400, "Review both workspace rollout settings before applying them.");
-  const data = { oyamaCreateV5ShellEnabled: req.body.shellEnabled, oyamaCreateUnifiedEditorEnabled: req.body.unifiedEditorEnabled };
+  if (req.body.classicLettersEnabled !== undefined && typeof req.body.classicLettersEnabled !== "boolean") throw new CreateError(400, "Choose enabled or disabled for the classic Letters pilot.");
+  const data = { oyamaCreateV5ShellEnabled: req.body.shellEnabled, oyamaCreateUnifiedEditorEnabled: req.body.unifiedEditorEnabled, ...(typeof req.body.classicLettersEnabled === "boolean" ? { oyamaCreateClassicLettersEnabled: req.body.classicLettersEnabled } : {}) };
   await prisma.$transaction(async tx => {
     await tx.organizationSettings.upsert({ where: { organizationId: org }, create: { organizationId: org, ...data }, update: data });
     await tx.auditLog.create({ data: { organizationId: org, userId: actor, action: "CREATE_WORKSPACE_ROLLOUT", entity: "OrganizationSettings", entityId: org, metadata: data } });
   });
-  res.json({ shellEnabled: data.oyamaCreateV5ShellEnabled, unifiedEditorEnabled: data.oyamaCreateUnifiedEditorEnabled });
+  res.json({ shellEnabled: data.oyamaCreateV5ShellEnabled, unifiedEditorEnabled: data.oyamaCreateUnifiedEditorEnabled, ...(data.oyamaCreateClassicLettersEnabled === undefined ? {} : { classicLettersEnabled: data.oyamaCreateClassicLettersEnabled }) });
 }));
 router.get("/contents/:id/notes", route(async (req, res, org) => {
   await contentFor(req, param(req));

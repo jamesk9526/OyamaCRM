@@ -47,6 +47,7 @@ import productionRoutes from "./letter-production.js";
 import deletionRoutes from "./letter-deletion.js";
 import {studioGeneratedGuard,maskStudioGenerated} from "../oyama-create/studio/print-access.js";
 import { readArtifact, combineArtifacts, ProductionError } from "../services/letter-production.js";
+import { managedPublicMedia, normalizePublicMediaUrl } from "../lib/public-media.js";
 
 const router = Router();
 
@@ -128,7 +129,7 @@ type LetterTemplateExportPayload = {
   };
 };
 
-interface LetterPdfBrandingContext {
+export interface LetterPdfBrandingContext {
   organizationName: string;
   tagline: string;
   addressLine: string;
@@ -144,7 +145,7 @@ interface LetterPdfBrandingContext {
   primaryColor: string;
 }
 
-interface LetterPdfPresetContext {
+export interface LetterPdfPresetContext {
   headerPreset?: {
     logoAlignment?: string | null;
     showOrganizationName: boolean;
@@ -365,7 +366,8 @@ function parseEnum<T extends string>(value: unknown, allowed: readonly T[]): T |
 }
 
 interface LetterPdfPageLayout {
-  format: "letter" | "legal" | "a4";
+  format: "letter" | "legal" | "a4" | [number, number];
+  orientation?: "portrait" | "landscape";
   marginTop: number;
   marginRight: number;
   marginBottom: number;
@@ -400,7 +402,7 @@ export function resolveLetterPdfPageLayout(value: unknown): LetterPdfPageLayout 
   const source = Object.keys(saved).length > 0 ? saved : container;
   const rawMargins = asRecord(source.margins);
   const pageSize = String(source.pageSize ?? source.format ?? "letter").trim().toLowerCase();
-  const format = pageSize.includes("legal") ? "legal" : pageSize.includes("a4") ? "a4" : "letter";
+  const format = pageSize.includes("half") ? [396, 612] as [number, number] : pageSize.includes("legal") ? "legal" : pageSize.includes("a4") ? "a4" : "letter";
   const marginInPoints = (candidate: unknown, fallback: number) => {
     const inches = typeof candidate === "number" ? candidate : Number.parseFloat(String(candidate ?? ""));
     if (!Number.isFinite(inches)) return fallback;
@@ -409,6 +411,7 @@ export function resolveLetterPdfPageLayout(value: unknown): LetterPdfPageLayout 
 
   return {
     format,
+    ...(source.orientation === "landscape" ? { orientation: "landscape" as const } : {}),
     marginTop: marginInPoints(rawMargins.top ?? source.marginTop, DEFAULT_LETTER_PDF_PAGE_LAYOUT.marginTop),
     marginRight: marginInPoints(rawMargins.right ?? source.marginRight, DEFAULT_LETTER_PDF_PAGE_LAYOUT.marginRight),
     marginBottom: marginInPoints(rawMargins.bottom ?? source.marginBottom, DEFAULT_LETTER_PDF_PAGE_LAYOUT.marginBottom),
@@ -1735,9 +1738,14 @@ export function htmlToPdfBlocks(html: string): PdfContentBlock[] {
   return blocks;
 }
 
-async function hydratePdfImageBlocks(blocks: PdfContentBlock[]): Promise<PdfContentBlock[]> {
+async function hydratePdfImageBlocks(blocks: PdfContentBlock[], assets?: Record<string, string>): Promise<PdfContentBlock[]> {
   return Promise.all(blocks.map(async (block) => {
     if (block.kind !== "image") return block;
+    if (assets) {
+      const dataUrl = assets[block.src] || assets[block.src.replace(/&amp;/g, "&")], format = dataUrl && inferPdfLogoFormatFromDataUrl(dataUrl);
+      if (!dataUrl || !format) throw new ProductionError(422, "A letter image is missing from the frozen proof. Replace the upload and regenerate it.");
+      return { ...block, dataUrl, format };
+    }
     const image = await loadBrandingLogoDataUrl(block.src);
     return image ? { ...block, dataUrl: image.dataUrl, format: image.format } : block;
   }));
@@ -1816,9 +1824,14 @@ function normalizePdfHexColor(value: string): [number, number, number] {
   ];
 }
 
-async function loadBrandingLogoDataUrl(rawLogoPath: string): Promise<{ dataUrl: string; format: "PNG" | "JPEG" | "WEBP" } | null> {
+async function loadBrandingLogoDataUrl(rawLogoPath: string, organizationId?: string): Promise<{ dataUrl: string; format: "PNG" | "JPEG" | "WEBP" } | null> {
   let logoPath = rawLogoPath.trim().replace(/\\/g, "/");
   if (!logoPath) return null;
+  const media = managedPublicMedia(logoPath);
+  if (media) {
+    if (organizationId && media.organizationId !== organizationId) return null;
+    logoPath = media.storagePath;
+  }
   if (!logoPath.startsWith("/") && /^https?:\/\//i.test(logoPath)) {
     try {
       const parsed = new URL(logoPath);
@@ -1835,7 +1848,7 @@ async function loadBrandingLogoDataUrl(rawLogoPath: string): Promise<{ dataUrl: 
 
   const publicDir = path.resolve(process.cwd(), "public");
   const absolutePath = path.resolve(publicDir, `.${logoWithoutQuery}`);
-  if (!absolutePath.startsWith(publicDir)) return null;
+  if (!absolutePath.startsWith(publicDir + path.sep)) return null;
 
   const extension = path.extname(absolutePath).toLowerCase();
   const mimeType = extension === ".webp" ? "image/webp" : inferSupportedPdfLogoMime(absolutePath);
@@ -1853,13 +1866,14 @@ async function loadBrandingLogoDataUrl(rawLogoPath: string): Promise<{ dataUrl: 
 
 async function resolveBrandingLogoDataUrl(
   branding: unknown,
+  organizationId: string,
 ): Promise<{ dataUrl: string; format: "PNG" | "JPEG" | "WEBP" } | null> {
   const candidates = [
     readFirstTextConfig(branding, ["logoUrl", "logo", "primaryLogoUrl", "brandLogoUrl"]),
     readFirstTextConfig(branding, ["logoSquareUrl", "squareLogoUrl", "secondaryLogoUrl"]),
   ].filter(Boolean);
   for (const candidate of candidates) {
-    const logo = await loadBrandingLogoDataUrl(candidate);
+    const logo = await loadBrandingLogoDataUrl(candidate, organizationId);
     if (logo) return logo;
   }
   // Do not guess from the newest branding upload. It can be unrelated to the
@@ -1867,7 +1881,7 @@ async function resolveBrandingLogoDataUrl(
   return null;
 }
 
-async function getLetterPdfBrandingContext(organizationId: string): Promise<LetterPdfBrandingContext> {
+async function readLetterPdfBranding(organizationId: string, acceptedIdentity?: unknown) {
   const [organization, settings, brandingSetting] = await Promise.all([
     prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } }),
     prisma.organizationSettings.findUnique({ where: { organizationId }, select: { smtpFromEmail: true, smtpFromName: true } }),
@@ -1877,7 +1891,7 @@ async function getLetterPdfBrandingContext(organizationId: string): Promise<Lett
     }),
   ]);
 
-  const branding = brandingSetting?.config;
+  const branding = acceptedIdentity ?? brandingSetting?.config;
   const organizationName =
     readFirstTextConfig(branding, ["organizationDisplayName", "legalOrganizationName", "organizationName"])
     || organization?.name
@@ -1888,9 +1902,7 @@ async function getLetterPdfBrandingContext(organizationId: string): Promise<Lett
     readFirstTextConfig(branding, ["contactEmail", "email"]) || settings?.smtpFromEmail || "",
     readFirstTextConfig(branding, ["websiteUrl", "website"]),
   ].filter(Boolean).join(" | ");
-  const logo = await resolveBrandingLogoDataUrl(branding);
-
-  return {
+  const context: LetterPdfBrandingContext = {
     organizationName,
     tagline: readTextConfig(branding, "tagline"),
     addressLine: buildAddressLineFromBranding(branding),
@@ -1901,10 +1913,17 @@ async function getLetterPdfBrandingContext(organizationId: string): Promise<Lett
     footerLegalText: readTextConfig(branding, "footerLegalText"),
     globalHeaderHtml: readTextConfig(branding, "globalHeaderHtml"),
     globalFooterHtml: readTextConfig(branding, "globalFooterHtml"),
-    logoDataUrl: logo?.dataUrl ?? null,
-    logoFormat: logo?.format ?? null,
+    logoDataUrl: null,
+    logoFormat: null,
     primaryColor: readFirstTextConfig(branding, ["primaryColor", "accentColor"]) || "#0f766e",
   };
+  return { identity: branding, context };
+}
+
+async function getLetterPdfBrandingContext(organizationId: string): Promise<LetterPdfBrandingContext> {
+  const { identity, context } = await readLetterPdfBranding(organizationId);
+  const logo = await resolveBrandingLogoDataUrl(identity, organizationId);
+  return { ...context, logoDataUrl: logo?.dataUrl ?? null, logoFormat: logo?.format ?? null };
 }
 
 /** Sanitizes a value for safe ASCII PDF filename usage. */
@@ -1954,6 +1973,29 @@ async function getDefaultLetterPdfPresets(organizationId: string): Promise<Lette
     prisma.letterSignatureBlock.findFirst({ where: { organizationId, isDefault: true, isActive: true } }),
   ]);
   return { headerPreset, footerPreset, signatureBlock };
+}
+
+export async function readClassicLetterhead(organizationId: string, template?: {
+  headerPresetId?: string | null; footerPresetId?: string | null; signatureBlockId?: string | null;
+  logoMode?: string; customLogoUrl?: string | null;
+}, acceptedIdentity?: unknown) {
+  const [branding, defaults, header, footer, signer] = await Promise.all([
+    readLetterPdfBranding(organizationId, acceptedIdentity), getDefaultLetterPdfPresets(organizationId),
+    template?.headerPresetId ? prisma.letterHeaderPreset.findFirst({ where: { organizationId, id: template.headerPresetId } }) : null,
+    template?.footerPresetId ? prisma.letterFooterPreset.findFirst({ where: { organizationId, id: template.footerPresetId } }) : null,
+    template?.signatureBlockId ? prisma.letterSignatureBlock.findFirst({ where: { organizationId, id: template.signatureBlockId } }) : null,
+  ]);
+  const logoSource = template?.logoMode === "NONE" ? "" : normalizePublicMediaUrl(
+    template?.logoMode === "CUSTOM" && template.customLogoUrl ? template.customLogoUrl :
+      readFirstTextConfig(branding.identity, ["logoUrl", "logo", "primaryLogoUrl", "brandLogoUrl", "logoSquareUrl", "squareLogoUrl", "secondaryLogoUrl"]),
+  );
+  const presets: LetterPdfPresetContext = {
+    headerPreset: defaults.headerPreset ?? header,
+    footerPreset: defaults.footerPreset ?? footer,
+    signatureBlock: defaults.signatureBlock ?? signer,
+  };
+  if (template?.logoMode === "NONE") presets.headerPreset = { showOrganizationName: true, showTagline: true, showAddress: true, showPhone: true, showWebsite: true, ...presets.headerPreset, logoAlignment: "NONE" };
+  return { branding: branding.context, logoSource, presets };
 }
 
 function buildRecipientCityStateZip(recipient?: LetterPdfRecipientContext | null): string {
@@ -2046,7 +2088,7 @@ function drawPdfChrome(
   presets: LetterPdfPresetContext,
   recipient?: LetterPdfRecipientContext | null,
   pageRange?: { startPage?: number; endPage?: number },
-  documentMeta?: { subject?: string; generatedAt?: Date; bodyDate?: string | null },
+  documentMeta?: { subject?: string; generatedAt?: Date; bodyDate?: string | null; strictAssets?: boolean },
   layout: LetterPdfPageLayout = DEFAULT_LETTER_PDF_PAGE_LAYOUT,
 ): void {
   const pageCount = doc.getNumberOfPages();
@@ -2125,7 +2167,7 @@ function drawPdfChrome(
       try {
         doc.addImage(branding.logoDataUrl, logoFormat, logoX, logoY, renderedLogoWidth, renderedLogoHeight);
       } catch {
-        // Keep PDF generation resilient if logo decoding fails.
+        if (documentMeta?.strictAssets) throw new ProductionError(422, "The configured logo cannot be embedded. Replace the upload before printing.");
       }
     }
     if (chrome.header && hasFallbackLogo) {
@@ -2355,12 +2397,13 @@ export async function buildLetterPdfBodyBlocks(
   mergedPrintBody: string,
   signature?: LetterPdfPresetContext["signatureBlock"],
   recipient?: LetterPdfRecipientContext | null,
+  assets?: Record<string, string>,
 ): Promise<PdfContentBlock[]> {
   const bodyBlocks = stripLeadingRecipientAddressBlocks(htmlToPdfBlocks(mergedPrintBody || ""), recipient);
   const signedBlocks = pdfBodyAlreadyHasSignature(mergedPrintBody || "", signature)
     ? bodyBlocks
     : appendSignatureBlocks(bodyBlocks, signature);
-  return hydratePdfImageBlocks(signedBlocks);
+  return hydratePdfImageBlocks(signedBlocks, assets);
 }
 
 function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], options: { startY: number; continuationStartY?: number; requireExplicitPageBreaks?: boolean; layout: LetterPdfPageLayout }): void {
@@ -2693,12 +2736,23 @@ export async function renderGeneratedLetterPdf(params: {
   branding: LetterPdfBrandingContext;
   presets: LetterPdfPresetContext;
   printLayout?: unknown;
+  assets?: Record<string, string>;
+  frozenId?: string;
+  sample?: boolean;
 }): Promise<Buffer> {
   const { jsPDF } = await import("jspdf");
   const layout = resolveLetterPdfPageLayout(params.printLayout);
-  const doc = new jsPDF({ unit: "pt", format: layout.format, compress: true });
+  const doc = new jsPDF({ unit: "pt", format: layout.format, orientation: layout.orientation, compress: true });
+  if (params.frozenId) {
+    doc.setCreationDate(params.generatedAt);
+    doc.setFileId(params.frozenId);
+    if (params.branding.logoDataUrl) {
+      try { doc.getImageProperties(params.branding.logoDataUrl); }
+      catch { throw new ProductionError(422, "The configured logo cannot be decoded. Replace the upload before printing."); }
+    }
+  }
 
-  const builtBlocks = await buildLetterPdfBodyBlocks(params.mergedPrintBody, params.presets.signatureBlock, params.recipient);
+  const builtBlocks = await buildLetterPdfBodyBlocks(params.mergedPrintBody, params.presets.signatureBlock, params.recipient, params.assets);
   const { bodyDate, blocks } = extractLeadingLetterDate(builtBlocks);
   renderPdfContentBlocks(doc, blocks, {
     startY: firstPageLetterBodyStartY(params.presets, layout),
@@ -2709,7 +2763,14 @@ export async function renderGeneratedLetterPdf(params: {
     subject: params.subject,
     generatedAt: params.generatedAt,
     bodyDate,
+    strictAssets: !!params.frozenId,
   }, layout);
+  if (params.sample) for (let index = 1; index <= doc.getNumberOfPages(); index++) {
+    doc.setPage(index);
+    doc.setTextColor(150, 58, 38);
+    doc.setFontSize(8);
+    doc.text("SAMPLE PROOF", 10, doc.internal.pageSize.getHeight() - 8);
+  }
 
   const pdfBytes = doc.output("arraybuffer");
   return Buffer.from(pdfBytes);

@@ -18,8 +18,7 @@ export function compactStudioAssets(jobs:Array<{payloadJson:unknown}>) {
   return bundle;
 }
 export function hydrateStudioAssets(letter:LetterSnapshot,bundle:Record<string,string>={}) {
-  if(!letter.studio)return;
-  for(const assets of [letter.assets,letter.studio.assets])for(const [source,value] of Object.entries(assets||{}))if(value.startsWith("@create-asset:")){
+  for(const assets of [letter.assets,letter.studio?.assets])if(assets)for(const [source,value] of Object.entries(assets))if(value.startsWith("@create-asset:")){
       const frozen=bundle[value.slice("@create-asset:".length)];if(!frozen)throw new CreateError(422,"An approved print asset is missing from its frozen release.");assets[source]=frozen;
     }
 }

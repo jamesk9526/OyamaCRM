@@ -7,7 +7,8 @@ import { CreateError, variantFrom } from "../oyama-create/domain.js";
 import { isTrashed } from "../oyama-create/trash-state.js";
 import { managedAssetIssues } from "../oyama-create/studio/asset-files.js";
 import { baselineBrand, brandForDesign, brandForStudio } from "../oyama-create/studio/brand-service.js";
-import { defaultDesign, DONOR_FIELDS, normalizeDesign, walkNodes } from "../oyama-create/studio/design.js";
+import { channelDesign, defaultDesign, DONOR_FIELDS, normalizeDesign, sourceIdentity, walkNodes } from "../oyama-create/studio/design.js";
+import { classicStudioEdit, classicWorkingCopy, persistClassicLetter } from "../oyama-create/classic-letter.js";
 import { emptyDonor, regionIssues, renderRegion, renderStudio } from "../oyama-create/studio/render.js";
 import type { DonorContext, StudioIssue } from "../oyama-create/studio/types.js";
 import { json } from "../services/letter-production.js";
@@ -72,8 +73,14 @@ export async function updateLetterDraft(req: Request, grantId: string, origin: s
       throw new CreateError(409, "This letter has moved beyond standalone draft editing. Open the CRM editor or save a new copy.");
     }
     if (content.revision !== revision) throw new CreateError(409, "The letter changed. Read its current revision before editing.");
+    const working = await classicWorkingCopy(org, id);
     const old = normalizeDesign(content.designJson), brand = await brandForStudio(org, old, "LETTER");
-    const { design, diagnostics } = await applyLetterChanges(org, old, brand, changes, content.designJson);
+    const scoped = working ? channelDesign(old, "LETTER") : old;
+    const { design, diagnostics } = await applyLetterChanges(org, scoped, brand, changes, content.designJson);
+    const edit = working ? await classicStudioEdit(req, content, working, {
+      ...design, body: old.body, channels: { ...old.channels, LETTER: { ...old.channels?.LETTER, document: design.body, reviewedSource: null } },
+    }, diagnostics) : null;
+    if (edit?.design.channels?.LETTER) edit.design.channels.LETTER.reviewedSource = sourceIdentity(edit.design);
     return prisma.$transaction(async tx => {
       // The campaign revision also guards approval and edits made in the regular Studio UI.
       const claim = await tx.createCampaign.updateMany({
@@ -83,10 +90,13 @@ export async function updateLetterDraft(req: Request, grantId: string, origin: s
       if (!claim.count || await isTrashed(org, "CAMPAIGN", campaign.id, tx) || await isTrashed(org, "CONTENT", id, tx)) {
         throw new CreateError(409, "This campaign changed or already has release history. Check its current status in Create.");
       }
-      const saved = await tx.createContent.updateMany({ where: { id, organizationId: org, revision }, data: { designJson: json(design), revision: { increment: 1 } } });
-      if (!saved.count) throw new CreateError(409, "The letter changed. Read its current revision before editing.");
+      if (working && edit) await persistClassicLetter(tx, content, actor, edit, working);
+      else {
+        const saved = await tx.createContent.updateMany({ where: { id, organizationId: org, revision }, data: { designJson: json(design), revision: { increment: 1 } } });
+        if (!saved.count) throw new CreateError(409, "The letter changed. Read its current revision before editing.");
+        await tx.createDocumentRevision.create({ data: { organizationId: org, contentId: id, revision: revision + 1, documentJson: json({ shared: content.documentJson, studio: design }), createdBy: actor } });
+      }
       await tx.createVariant.update({ where: { id: variant.id }, data: { needsReview: true } });
-      await tx.createDocumentRevision.create({ data: { organizationId: org, contentId: id, revision: revision + 1, documentJson: json({ shared: content.documentJson, studio: design }), createdBy: actor } });
       const result = { id, campaignId: campaign.id, revision: revision + 1, status: "DRAFT", url: editorUrl(origin, campaign.id), diagnostics, reviewRequired: true };
       await record(tx, result);
       return result;
@@ -157,6 +167,6 @@ export async function previewLetterDraft(req: Request, origin: string, id: strin
     id, revision: content.revision, sample: true, previewText: preview.slice(0, 12000), previewTruncated: preview.length > 12000,
     inlineFields: tokens.slice(0, 100), fieldBlocks: fields, bodyBlockCount: body.content.length, issues: issues.slice(0, 50), issueCount: issues.length,
     page: design.page, printPack: { replySlip: design.pack.replySlip.enabled, outerEnvelope: design.pack.outerEnvelope.enabled, returnEnvelope: design.pack.returnEnvelope.enabled },
-    url: editorUrl(origin, campaign.id), reviewRequired: true, next: "Review the saved draft in Studio. Use PDF proof to check actual pagination and recipient merge results.",
+    url: editorUrl(origin, campaign.id), reviewRequired: true, next: "Review the saved draft in Create. Use the PDF proof to check pagination and recipient merge results.",
   };
 }

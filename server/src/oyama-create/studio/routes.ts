@@ -25,6 +25,9 @@ import { managedAssetIssues } from "./asset-files.js";
 import { exportHtmlDocument, importHtmlDocument, type HtmlScope } from "./html-document.js";
 import { renderRegion, regionIssues } from "./render.js";
 import { fontInventory, printFontAssets } from "./print-fonts.js";
+import { usesClassicLetter } from "../classic-letter.js";
+import { mergeDigitalDraft } from "../classic-digital.js";
+import { LETTER_ADAPTATION_CHANNELS, type LetterAdaptationChannel } from "../letter-adaptations.js";
 const router = Router();
 router.get("/studio/fonts",route(async(req,res)=>{if(!await can(req,"letters.view")&&!await can(req,"view:communications"))throw new CreateError(403,"Create access is required.");const extra=Array.isArray(req.query.font)?req.query.font:[req.query.font];if(extra.length>20)throw new CreateError(400,"Too many font checks.");res.json(await fontInventory(extra.filter((value):value is string=>typeof value==="string"&&value.length<=80)));}));
 
@@ -42,6 +45,7 @@ router.get("/contents/:id/studio", route(async (req, res, org) => {
 }));
 router.post("/contents/:id/studio/convert", route(async (req, res, org, actor) => {
   const { content, campaign } = await contentFor(req, param(req), true); await demandChannels(req, campaign.channelsJson as Channel[], true);
+  if (await usesClassicLetter(content)) throw new CreateError(409, "This content uses the classic Letter canvas. Open a digital format to edit its copy.");
   if(campaign.status==="HISTORICAL")throw new CreateError(409,"Historical output is preserved. Duplicate it before creating a Studio draft.");
   if (content.designJson) throw new CreateError(409, "This content already has a Studio design.");
   if (req.body.confirm !== true) throw new CreateError(400, "Review the original and confirm its Studio conversion.");
@@ -70,18 +74,28 @@ router.post("/contents/:id/studio/convert", route(async (req, res, org, actor) =
 router.patch("/contents/:id/studio", route(async (req, res, org, actor) => {
   const { content, campaign } = await contentFor(req, param(req), true); await demandChannels(req, campaign.channelsJson as Channel[], true);
   if(campaign.status==="HISTORICAL")throw new CreateError(409,"Historical output is preserved. Duplicate it before editing.");
-  if (!content.designJson) throw new CreateError(409, "Review the original content before converting it to Studio.");
-  const design = normalizeDesign(req.body.design); assertStudioAssetOwnership(org,design); await assertAvailableSelections(org, design, content.designJson); await brandForStudio(org, design);
+  const classic = await usesClassicLetter(content), channel = string(req.body.channel) as LetterAdaptationChannel;
+  if (classic && (!LETTER_ADAPTATION_CHANNELS.includes(channel) || !content.variants.some(item => item.channel === channel))) throw new CreateError(409, "Choose a digital format. This Letter is edited in the classic canvas.");
+  if (classic && campaign.status !== "DRAFT") throw new CreateError(409, "Duplicate this campaign before editing its digital draft.");
+  if (!content.designJson && !classic) throw new CreateError(409, "Review the original content before converting it to Studio.");
+  const old = content.designJson ? normalizeDesign(content.designJson) : legacyDesign(content);
+  const submitted = normalizeDesign(req.body.design);
+  if (classic && !submitted.channels?.[channel]) throw new CreateError(400, "Save an explicit draft for the selected digital format.");
+  const design = classic ? mergeDigitalDraft(old, submitted, channel) : submitted;
+  if (classic && !design.brandRevisionId && !design.presentation?.sourceRevisionId) design.brandRevisionId = await baselineBrand(org, actor);
+  if (classic && design.channels?.[channel]?.reviewedSource && submitted.channels?.[channel]?.reviewedSource === sourceIdentity(submitted)) design.channels[channel]!.reviewedSource = sourceIdentity(design);
+  assertStudioAssetOwnership(org,design); await assertAvailableSelections(org, design, content.designJson); await brandForStudio(org, design);
   await hydrateSourceHtml(req, org, design);
   if (!design.brandRevisionId && !design.presentation?.sourceRevisionId) throw new CreateError(400, "Select a preserved brand revision.");
-  const old = normalizeDesign(content.designJson); if (design.email.reviewedSource && design.email.reviewedSource !== old.email.reviewedSource && design.email.reviewedSource !== sourceIdentity(design)) throw new CreateError(400, "Review the current shared design before accepting email customizations.");
+  if (design.email.reviewedSource && design.email.reviewedSource !== old.email.reviewedSource && design.email.reviewedSource !== sourceIdentity(design)) throw new CreateError(400, "Review the current shared design before accepting email customizations.");
   const result = await prisma.$transaction(async tx => {
     await touchCampaign(tx, org, campaign.id, req.body.campaignRevision);
     if(req.body.sourceMode==="HTML")await tx.createDocumentRevision.upsert({where:{contentId_revision:{contentId:content.id,revision:content.revision}},update:{},create:{organizationId:org,contentId:content.id,revision:content.revision,documentJson:json({shared:content.documentJson,studio:old}),createdBy:actor}});
     const updated = await tx.createContent.updateMany({ where: { id: content.id, organizationId: org, revision: req.body.revision }, data: { designJson: json(design), revision: { increment: 1 } } });
     if (!updated.count) throw new CreateError(409, "This design changed in another session. Your local draft remains available.");
-    await tx.createVariant.updateMany({ where: { contentId: content.id, organizationId: org, channel: { in: ["WEB", "SMS", "SOCIAL"] } }, data: { needsReview: true } });
-    for (const channel of ["WEB","SMS","SOCIAL"] as const) if (design.channels?.[channel]?.reviewedSource === sourceIdentity(design)) await tx.createVariant.updateMany({where:{contentId:content.id,organizationId:org,channel},data:{needsReview:false}});
+    const reviewChannels = (["WEB", "SMS", "SOCIAL"] as const).filter(value => !classic || value === channel);
+    if (reviewChannels.length) await tx.createVariant.updateMany({ where: { contentId: content.id, organizationId: org, channel: { in: reviewChannels } }, data: { needsReview: true } });
+    for (const channel of reviewChannels) if (design.channels?.[channel]?.reviewedSource === sourceIdentity(design)) await tx.createVariant.updateMany({where:{contentId:content.id,organizationId:org,channel},data:{needsReview:false}});
     await tx.createDocumentRevision.create({ data: { organizationId: org, contentId: content.id, revision: content.revision + 1, documentJson: json({ shared: content.documentJson, studio: design }), createdBy: actor } });
     return { design, contentRevision: content.revision + 1, campaignRevision: campaign.revision + 1 };
   }); res.json(result);
@@ -91,6 +105,7 @@ router.post("/contents/:id/studio/html",route(async(req,res,org)=>{
   if(!content.designJson)throw new CreateError(409,"Open this content in Studio before editing its HTML.");
   const action=string(req.body.action),scope=(string(req.body.scope)||"SHARED") as HtmlScope;
   if(!["SHARED","LETTER","EMAIL","WEB","SOCIAL","SMS"].includes(scope)||!["EXPORT","CONVERT"].includes(action))throw new CreateError(400,"Choose a supported HTML action and document scope.");
+  if ((scope === "SHARED" || scope === "LETTER") && await usesClassicLetter(content)) throw new CreateError(409, "Open Letter body HTML in the classic canvas.");
   const design=normalizeDesign(content.designJson);
   if(scope!=="SHARED"&&!design.channels?.[scope])throw new CreateError(400,"Customize this channel explicitly before editing its HTML.");
   const hydrated=await hydrateSourceHtml(req,org,design),brand=await brandForStudio(org,design,scope==="SHARED"?undefined:scope),identity=fingerprint(content.designJson);
@@ -105,6 +120,7 @@ router.post("/contents/:id/studio/html",route(async(req,res,org)=>{
 router.post("/contents/:id/studio/preview", route(async (req, res, org) => {
   const {content,campaign}=await contentFor(req,param(req));
   const channel=string(req.body.channel)||"LETTER";if(!["LETTER","EMAIL","WEB","SMS","SOCIAL"].includes(channel))throw new CreateError(400,"Choose a supported preview channel.");
+  if (channel === "LETTER" && await usesClassicLetter(content)) throw new CreateError(409, "Open the recipient PDF proof in the classic Letter canvas.");
   await demandChannels(req,[channel as Channel]);
   const design=await hydrateSourceHtml(req,org,normalizeDesign(req.body.design||content.designJson)),brand=await brandForStudio(org,design,channel as Channel);
   const donor=await resolveStudioDonor(req,campaign,design,["LETTER","EMAIL"].includes(channel)?string(req.body.constituentId)||undefined:undefined);
@@ -119,6 +135,7 @@ router.post("/contents/:id/studio/preview", route(async (req, res, org) => {
 router.post("/contents/:id/studio/legacy-review",route(async(req,res,org,actor)=>{
   const {content,campaign}=await contentFor(req,param(req),true);if(!content.designJson||req.body.confirm!==true)throw new CreateError(400,"Review the preserved legacy output against Studio first.");
   const channel=string(req.body.channel),variant=content.variants.find(item=>item.channel===channel);if(!variant||!["EMAIL","LETTER"].includes(channel))throw new CreateError(404,"Legacy version not found.");await demandChannels(req,[channel as Channel],true);
+  if (channel === "LETTER" && await usesClassicLetter(content)) throw new CreateError(409, "Review Letter source changes in the classic canvas.");
   await prisma.$transaction(async tx=>{await touchCampaign(tx,org,campaign.id,req.body.campaignRevision);const source=await nativeRecord(org,variant,tx);if(!source||source.fingerprint!==req.body.fingerprint||req.body.variantRevision!==variant.revision)throw new CreateError(409,"The legacy version changed again. Compare its current output before continuing.");const changed=await tx.createVariant.updateMany({where:{id:variant.id,revision:variant.revision},data:{legacyFingerprint:source.fingerprint,needsReview:false,revision:{increment:1}}});if(!changed.count)throw new CreateError(409,"The legacy version changed in another session.");await tx.auditLog.create({data:{organizationId:org,userId:actor,action:"CREATE_STUDIO_LEGACY_REVIEWED",entity:"CreateContent",entityId:content.id,metadata:{channel,choice:"KEEP_STUDIO",fingerprint:source.fingerprint}}});});
   res.json({reviewed:true,campaignRevision:campaign.revision+1});
 }));
@@ -133,6 +150,7 @@ router.get("/studio/recipients/:id/gifts", route(async (req, res, org) => {
 }));
 router.post("/contents/:id/studio/proof", route(async (req, res, org) => {
   const { content, campaign } = await contentFor(req, param(req)); await demand(req, "letters.export_pdf");
+  if (await usesClassicLetter(content)) throw new CreateError(409, "Open the recipient PDF proof in the classic Letter canvas.");
   if (req.body.revision !== content.revision) throw new CreateError(409, "Save and refresh the current design before generating its proof.");
   const design = await hydrateSourceHtml(req,org,normalizeDesign(content.designJson)), brand = await brandForStudio(org, design), donor = await resolveStudioDonor(req, campaign, design, string(req.body.constituentId) || undefined), kinds: ArtifactKind[] = ["LETTER"];
   if (design.pack.replySlip.enabled && design.pack.replySlip.placement === "separate") kinds.push("REPLY_SLIP"); if (design.pack.outerEnvelope.enabled) kinds.push("OUTER_ENVELOPE"); if (design.pack.returnEnvelope.enabled) kinds.push("RETURN_ENVELOPE");
