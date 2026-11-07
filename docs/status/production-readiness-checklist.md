@@ -1661,3 +1661,24 @@ Verification: focused QuickBooks API/provider/reliability tests, web/server Type
 - [x] Package PDF.js font and decoding resources and scope viewer and label styles independently of document styling.
 - [x] Pass desktop/phone label browser checks, four-size classic Letter browser checks, twelve focused unit tests, type checks and scoped lint.
 - [ ] Confirm actual-size Avery alignment with the organization's printer and stock. Browser and renderer checks are recorded in the labels audit.
+## Header and footer correction review — 2026-11-06
+
+- [x] Include measured region and margin details in print errors and provide confirmed draft corrections in the classic Letter editor.
+- [x] Cover token preservation, logo bounds, table content, sanitization and repeated correction with focused tests.
+- [ ] Verify the corrected November letter's header, merge values and pagination in the deployed browser and on paper before approval.
+
+
+## Compassion modular workspace and physician review — 2026-11-06
+
+- [x] Implement right-side navigation, current-client tools, profile editing and persistent case context; preserve scoped paper templates and print styling.
+- [x] Define module contracts and extract recovered core feature routers without changing their URLs.
+- [x] Enforce organization/role module policy on APIs, writes, public links and cross-module projections; preserve records when disabled.
+- [x] Implement dedicated reviewer identities, required TOTP, recovery, narrow revocable sessions, CSRF and authenticated ultrasound-only review/sign-off.
+- [x] Preserve signature evidence and use current-version checks and a shared transactional review service.
+- [x] Pass 118 focused tests with synthetic persistence, browser checks at desktop/tablet/phone widths, exact raster and text comparisons across ten printed pages, Prisma validation, type checks, scoped lint and web/API builds.
+- [ ] Apply the additive reviewer migration on the target database and prove transaction/concurrency behavior and restart persistence with the actual database.
+- [ ] Prove encrypted backup restoration and independent key recovery in an isolated environment.
+- [ ] Validate production HTTPS forwarding, cookie protection, session revocation and operational auditing through the actual hosting proxy.
+- [ ] Complete center-specific HIPAA/state/clinical review, credential validation, access/retention policies, incident procedures and applicable vendor agreements before clinical cutover.
+
+Implementation and verification evidence: `docs/status/audit-artifacts/2026-11-06-compassion-modules-physician/verification.md`. Synthetic evidence does not establish production database or HIPAA readiness.

@@ -18,7 +18,10 @@ const sample = { examDate: "2026-11-03", indication: "Test visit", findings: "Pr
 const auth = (who = "clinician", organizationId = orgId) => signAccessToken({ sub: who, email: `${who}@example.invalid`, role: "staff", orgId: organizationId });
 const call = (method: "get" | "post" | "patch", path: string, body?: unknown, who = "clinician") => {
   const req = request(app)[method](`/api/compassion${path}`).set("Authorization", `Bearer ${auth(who)}`);
-  return body === undefined ? req : req.send(body as object);
+  const chartId = /^\/charts\/([^/]+)/.exec(path)?.[1];
+  const chart = chartId ? careRows.compassionChart?.find(c=>c.id===chartId) : null;
+  const payload = body && typeof body === "object" && chart?.kind === "ULTRASOUND" && !Object.hasOwn(body,"expectedUpdatedAt") ? { ...body, expectedUpdatedAt: (chart.updatedAt as Date).toISOString() } : body;
+  return payload === undefined ? req : req.send(payload as object);
 };
 const create = (content: Record<string, unknown> = sample) => call("post", "/charts", { clientId: "client", kind: "ULTRASOUND", content });
 const scan = (id: string, who = "clinician") => call("post", "/documents", { clientId: "client", chartId: id, name: "synthetic-scan.png", mimeType: "image/png", base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aA1sAAAAASUVORK5CYII=" }, who);

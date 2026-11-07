@@ -61,14 +61,14 @@ export function exportHtmlDocument(design:StudioDesign,brand:BrandDocument,scope
 
 export const CLASSIC_REGIONS = ["body", ...regions, "replySlip"] as const;
 export type ClassicRegion = typeof CLASSIC_REGIONS[number];
-export function classicRegionHtml(design: StudioDesign, brand: BrandDocument, hydrated = design): Record<ClassicRegion, string> {
+export function classicRegionHtml(design: StudioDesign, brand: BrandDocument, hydrated = design, includeBrand = false): Record<ClassicRegion, string> {
   const { parts } = sourceParts(design, brand, "LETTER", hydrated);
   return {
     body: parts.get("body") || "",
-    firstHeader: design.regions.firstHeader.mode === "custom" ? parts.get("firstHeader") || "" : "",
-    header: design.regions.header.mode === "custom" ? parts.get("header") || "" : "",
-    firstFooter: design.regions.firstFooter.mode === "custom" ? parts.get("firstFooter") || "" : "",
-    footer: design.regions.footer.mode === "custom" ? parts.get("footer") || "" : "",
+    firstHeader: includeBrand || design.regions.firstHeader.mode === "custom" ? parts.get("firstHeader") || "" : "",
+    header: includeBrand || design.regions.header.mode === "custom" ? parts.get("header") || "" : "",
+    firstFooter: includeBrand || design.regions.firstFooter.mode === "custom" ? parts.get("firstFooter") || "" : "",
+    footer: includeBrand || design.regions.footer.mode === "custom" ? parts.get("footer") || "" : "",
     replySlip: parts.get("replySlip") || "",
   };
 }

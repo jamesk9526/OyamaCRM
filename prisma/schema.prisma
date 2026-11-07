@@ -3895,6 +3895,48 @@ model CompassionActivity {
 }
 
 
+model CompassionReviewerAuthenticator {
+  id String @id @default(cuid())
+  organizationId String
+  userId String
+  encryptedSecret String @db.Text
+  recoveryHashes Json
+  lastStep BigInt @default(0)
+  verifiedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([organizationId, userId])
+}
+
+model CompassionReviewerSession {
+  id String @id @default(cuid())
+  organizationId String
+  userId String
+  tokenHash String @unique @db.VarChar(64)
+  csrfHash String @db.VarChar(64)
+  accountVersion DateTime
+  membershipVersion DateTime
+  mfaAt DateTime
+  mfaFailures Int @default(0)
+  lastActivityAt DateTime
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([organizationId, userId])
+}
+
+model CompassionReviewerChallenge {
+  id String @id @default(cuid())
+  organizationId String
+  userId String
+  tokenHash String @unique @db.VarChar(64)
+  expiresAt DateTime
+  attempts Int @default(0)
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([organizationId, userId, createdAt])
+}
+
 model CompassionMembership {
   id String @id @default(cuid())
   organizationId String

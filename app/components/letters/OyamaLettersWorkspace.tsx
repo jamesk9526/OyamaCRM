@@ -15,6 +15,7 @@ import { openPdfPrintView } from "@/app/components/letters/pdf-print";
 import { CLASSIC_PAPERS, type ClassicCrmBlock, type ClassicLetterAdvanced, type ClassicLetterResponse, type ClassicLetterSettings } from "@/server/src/oyama-create/classic-letter-contract";
 import { newBlock } from "@/server/src/oyama-create/studio/registry";
 import { sanitizeStudioHtml } from "@/server/src/oyama-create/studio/html";
+import { compactPrintRegionHtml, type PrintRegionRepair } from "@/server/src/oyama-create/studio/print-repair";
 import ClassicLetterProperties from "@/app/components/oyama-create/ClassicLetterProperties";
 import MatchingLabelsDownload from "@/app/components/letters/MatchingLabelsDownload";
 import MailMergeLabelsWorkspace from "@/app/components/letters/MailMergeLabelsWorkspace";
@@ -60,14 +61,16 @@ function isRequestAbort(error: unknown): boolean {
 async function letterPdfResponseError(response: Response, fallback: string): Promise<Error> {
   const requestId = response.headers.get("x-request-id")?.trim() ?? "";
   let message = `${fallback} (${response.status}).`;
+  let repair: PrintRegionRepair | undefined;
   try {
     const parsed = await response.json();
     if (parsed?.error?.message) message = String(parsed.error.message);
+    repair = parsed?.error?.repair;
   } catch {
     // Keep the status-based message when a proxy returns HTML or an empty body.
   }
   if (requestId && !message.includes(requestId)) message = `${message} Reference: ${requestId}`;
-  return new Error(message);
+  return Object.assign(new Error(message), { repair });
 }
 
 type PreparedBulkDownload = {
@@ -1369,6 +1372,7 @@ export function TemplateBuilder({ templateId, onEditorState, onSaved, create }: 
   const [editorPdfOpen, setEditorPdfOpen] = useState(false);
   const editorPdfDialogRef = useRef<HTMLDialogElement | null>(null);
   const [editorPdfLoading, setEditorPdfLoading] = useState(false);
+  const [printRepair, setPrintRepair] = useState<PrintRegionRepair | null>(null);
   const [editorPdfError, setEditorPdfError] = useState<string | null>(null);
   const [editorPdfFingerprint, setEditorPdfFingerprint] = useState<string | null>(null);
   const [editorPdfPageCount, setEditorPdfPageCount] = useState<number | null>(null);
@@ -1663,6 +1667,7 @@ export function TemplateBuilder({ templateId, onEditorState, onSaved, create }: 
     const timeout = window.setTimeout(() => controller.abort(), LETTER_PDF_PREVIEW_TIMEOUT_MS);
     setEditorPdfLoading(true);
     setEditorPdfError(null);
+    setPrintRepair(null);
     try {
       const activeTemplateId = createEndpoint ? create?.contentId : templateId || await save();
       if (!activeTemplateId) return;
@@ -1705,6 +1710,7 @@ export function TemplateBuilder({ templateId, onEditorState, onSaved, create }: 
       setTestConstituentLookupOpen(false);
       setNotice("Server-rendered PDF preview refreshed.");
     } catch (requestError) {
+      setPrintRepair((requestError as Error & { repair?: PrintRegionRepair }).repair || null);
       setEditorPdfError(isRequestAbort(requestError)
         ? "The server PDF preview timed out after 45 seconds. Your edits remain in the editor; save your draft before leaving, then try again or continue to Publish Review and use the request reference shown there."
         : errorMessage(requestError, "Failed to render server PDF preview."));
@@ -1713,6 +1719,25 @@ export function TemplateBuilder({ templateId, onEditorState, onSaved, create }: 
       if (editorPdfAbortRef.current === controller) editorPdfAbortRef.current = null;
       setEditorPdfLoading(false);
     }
+  }
+
+  function applyPrintRepair() {
+    if (!printRepair || !createAdvanced || createReadonly) return;
+    const { region, margin, required } = printRepair;
+    const compact = required > 1.5;
+    const explanation = compact
+      ? "Compact this letter's overflowing region by removing blank paragraphs, reducing spacing, bounding logos to 160 × 40 px and using 9 pt text with 14 pt headings? Reserve 1.5 inches, then review the refreshed PDF before saving."
+      : `Increase the ${margin} margin to ${required} inches? This changes body space and may change page count. Review the refreshed PDF before saving.`;
+    if (!window.confirm(explanation)) return;
+    const nextMargins = { ...margins, [margin]: Math.min(1.5, required) };
+    setMargins(nextMargins);
+    setDraft(current => ({ ...current, printLayoutJson: withLetterPdfLayout(current.printLayoutJson, pageSize, nextMargins, orientation) }));
+    setCreateAdvanced({ ...createAdvanced, page: { ...createAdvanced.page, margins: nextMargins },
+      ...(compact ? { regions: { ...createAdvanced.regions, [region]: { mode: "custom", presetId: "" } },
+        html: { ...createAdvanced.html, [region]: compactPrintRegionHtml(createAdvanced.html[region]) } } : {}),
+    });
+    setConfirmComparison(false); setPrintRepair(null); setEditorPdfError(null);
+    setNotice("Suggested formatting applied to this draft. Refresh the PDF, review it, then save.");
   }
 
   function printEditorPdf() {
@@ -3629,6 +3654,7 @@ export function TemplateBuilder({ templateId, onEditorState, onSaved, create }: 
               <p className="w-full text-xs text-slate-600">Print opens the PDF directly. Use the PDF viewer’s print control and select the matching paper size.</p>
             </div>
             {editorPdfError ? <Alert tone="amber">{editorPdfError}</Alert> : null}
+            {printRepair && createAdvanced && !createReadonly && <Button onClick={() => { setEditorPdfOpen(false); applyPrintRepair(); }}>Review formatting correction</Button>}
             {editorPdfStale ? <Alert tone="amber">This PDF was rendered before the latest letter or recipient changes. Refresh it before saving or printing.</Alert> : null}
             {proofWarnings.map(warning => <p className="oc-help" key={warning}>{warning}</p>)}
             {createEndpoint ? <LetterProofViewer compact label="" url={editorPdfUrl} busy={editorPdfLoading} stale={editorPdfStale} pageNumber={proofPage} onPageChange={setProofPage}/> : <object title="Editor Live PDF Preview" data={`${editorPdfUrl}#page=${proofPage}&toolbar=1&navpanes=0&view=FitH`} type="application/pdf" className="min-h-0 flex-1 bg-slate-100">
@@ -3680,7 +3706,13 @@ export function TemplateBuilder({ templateId, onEditorState, onSaved, create }: 
       dialogs: <>{imageInputForCreate()}{editorDialogs}</>,
       alerts: <>
         {error && <div className="oc-error" role="alert">{error}</div>}
+        {notice?.startsWith("Suggested formatting") && <div className="oc-notice">{notice}<Button onClick={() => void openServerPdfPreview()}>Refresh corrected PDF</Button></div>}
         {editorPdfError && !editorPdfOpen && <div className="oc-error" role="alert">{editorPdfError}</div>}
+        {printRepair && createAdvanced && !createReadonly && <div className="oc-notice">
+          The {printRepair.region.toLowerCase().includes("footer") ? "footer" : "header"} needs {printRepair.required} in of space.
+          <Button onClick={applyPrintRepair}>{printRepair.required <= 1.5 ? "Review margin correction" : "Review compact formatting fix"}</Button>
+          <Button onClick={() => setPrintRepair(null)}>Keep formatting</Button>
+        </div>}
         {createState.needsReview && <div className="oc-notice">
           {createState.diagnostics.join(" ")} {!createReadonly && <label className="oc-check">
             <input type="checkbox" disabled={!editorPdfUrl || editorPdfStale} checked={confirmComparison && !!editorPdfUrl && !editorPdfStale}

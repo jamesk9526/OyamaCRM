@@ -1789,3 +1789,15 @@ Verification: focused QuickBooks API/provider/reliability tests, web/server Type
 Create → Labels owns recipient review, saved audience selection, Avery 5160 start positions, alignment guides and exact PDF proofing. Settings and the editor workspace menu link to the same tool. Legacy label navigation opens Create. Sheet defaults are explicitly saved per account, organization and browser. Suppression overrides stay explicit for each selection. Approved print batches retain their matching-label export and recipient order.
 
 The label preview renders the generated PDF with PDF.js. Preview, download and print share the original bytes. A selection or sheet change marks the proof stale and disables its print controls. The viewer ships its font, character-map and decoding resources, and its canvas geometry has scoped styles. Verification is recorded under `audit-artifacts/2026-11-06-create-labels`.
+## Suggested header and footer corrections — 2026-11-06
+
+Print errors now report the measured region height and available margin. The classic Create Letter editor offers a confirmed margin increase when the region fits within 1.5 inches. Larger regions offer a confirmed draft correction that removes blank paragraphs, reduces spacing, bounds logos and uses explicit region type sizes. The correction uses unmerged source content. Staff refresh the PDF, review it and save the draft.
+
+
+## Compassion right sidebar, modules and physician review — 2026-11-06
+
+Compassion retains its light blue design with one collapsible right sidebar, current-client tools, URL-based case context, shared client identity state, explicit profile editing and reviewed administrative actions. Browser-safe extension contracts drive navigation, tabs, commands and feature boundaries. Seven extracted core API routers retain existing URLs. Settings → Modules controls organization enablement and role restrictions, with server/public-link enforcement and filtered aggregates.
+
+A separate physician login and review page supports dedicated ultrasound-only accounts, required authenticator enrollment, recovery, revocable/expiring CSRF-protected sessions, protected previews, corrections and shared transactional sign-off. General CRM login/refresh rejects reviewer accounts. Existing full-access physicians and historical signed reports remain supported. New ultrasound mutations require a current version. Clinical and reviewer routes remain separate from donor/AI/plugin/offline providers.
+
+Apply the additive reviewer migration and generate Prisma before starting the updated care API. Physician review defaults off and requires explicit configuration and verified account provisioning. Production database migration, concurrency, persistence, backup restoration and the center’s HIPAA/clinical deployment review remain release gates; no clinical cutover or production deployment is claimed. See `docs/plans/compassion-modular-physician-review.md` and `docs/status/audit-artifacts/2026-11-06-compassion-modules-physician/verification.md` for setup, evidence and actual verification results.

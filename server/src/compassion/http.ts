@@ -1,4 +1,5 @@
 import type { Request, Response, RequestHandler } from "express";
+import { checkEndpointModules } from "./module-policy.js";
 import { atomic, prisma } from "./database.js";
 import { org, requireCare, hasCareCapability, type CareCapability } from "./security.js";
 
@@ -31,6 +32,7 @@ export function route(capability: CareCapability, handler: (req: Request, res: R
       try { await atomic(org(req), async () => {
         const membership = await prisma.compassionMembership.findUnique({ where: { organizationId_userId: { organizationId: org(req), userId: req.user!.sub } } });
         if (!membership?.active || !hasCareCapability(membership.role, capability)) throw new CareError(403, "MEMBERSHIP_CHANGED", "Your client-care access has changed. Refresh the workspace.");
+        if (!await checkEndpointModules(req, res)) throw new CareError(403, "MODULE_UNAVAILABLE", "This module is no longer available.");
         await handler(req, res);
       }); }
       finally { res.json = json; }

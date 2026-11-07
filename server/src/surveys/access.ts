@@ -1,3 +1,5 @@
+import { effectiveModules } from "../compassion/contracts/modules.js";
+import { loadModulePolicies } from "../compassion/module-policy.js";
 import type { SurveyAudience } from "@prisma/client";
 import { prisma as db } from "../compassion/database.js";
 import { hasCareCapability, type CareCapability } from "../compassion/security.js";
@@ -21,7 +23,8 @@ export async function surveyAccess(organizationId: string, actorId: string, lane
       const key = `surveys.${ability}` as PermissionKey;
       return user.permissions.find(permission => permission.permission === key)?.granted ?? hasDefaultPermission(user.role, key);
     }) : [];
-  const client = user && care?.active && hasCareCapability(care.role, "casework")
+  const clientEnabled = lane === "CLIENT" && care && effectiveModules(await loadModulePolicies(organizationId),care.role).surveys;
+  const client = clientEnabled && user && care?.active && hasCareCapability(care.role, "casework")
     ? abilities.filter(ability => hasCareCapability(care.role, careAbility[ability])) : [];
   return { DONOR: donor, CLIENT: client, timezone: settings?.timezone ?? "America/Chicago" };
 }

@@ -11,7 +11,7 @@ export const route = (work: (req: Request, res: Response, org: string, actor: st
     await work(req, res, org, actor);
   } catch (error) {
     if (error instanceof CreateError) { res.status(error.status).json({ error: { code: error.status === 409 ? "CREATE_CONFLICT" : "OYAMA_CREATE", message: error.message } }); return; }
-    if (error instanceof ProductionError) { res.status(error.status).json({ error: { code: "CREATE_PRINT_READINESS", message: error.message } }); return; }
+    if (error instanceof ProductionError) { res.status(error.status).json({ error: { code: "CREATE_PRINT_READINESS", message: error.message, ...(error.repair ? { repair: error.repair } : {}) } }); return; }
     if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2002", "P2034"].includes(error.code)) { res.status(409).json({ error: { code: "CREATE_CONFLICT", message: "This operation changed concurrently or already exists. Refresh before retrying." } }); return; }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021" && String(error.meta?.modelName || "").startsWith("CreateImport")) { res.status(503).json({error:{code:"CREATE_IMPORT_MIGRATION_REQUIRED",message:"Install the automatic-import database migration before importing content."}}); return; }
     next(error);

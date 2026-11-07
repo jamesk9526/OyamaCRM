@@ -1,16 +1,10 @@
-import BridgeConnectionResume from "./components/ai/BridgeConnectionResume";
-import SpreadsheetTables from "./components/ui/crm/spreadsheet/SpreadsheetTables";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./design-system.css";
 import "./components/layout/reference-shell.css";
 import "./module-design-adapters.css";
-import { AuthProvider } from "./components/auth/AuthProvider";
-import AppShell from "./components/layout/AppShell";
-import { PluginProvider } from "./components/plugins/PluginProvider";
-import PWARegister from "./components/pwa/PWARegister";
 import { Suspense } from "react";
-import LegacyCreateRedirect from "./components/oyama-create/LegacyCreateRedirect";
+import WorkspaceProviders from "./components/WorkspaceProviders";
 
 export const metadata: Metadata = {
   title: "OyamaCRM v2.0",
@@ -69,15 +63,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased">
       <body className="h-full">
-        <PWARegister />
-        <AuthProvider>
-          <Suspense fallback={null}><LegacyCreateRedirect /></Suspense>
-          <BridgeConnectionResume />
-          <PluginProvider>
-            <AppShell>{children}</AppShell>
-            <SpreadsheetTables />
-          </PluginProvider>
-        </AuthProvider>
+        <Suspense fallback={null}><WorkspaceProviders>{children}</WorkspaceProviders></Suspense>
       </body>
     </html>
   );

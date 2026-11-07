@@ -1,0 +1,79 @@
+{
+  "fixture": "Explicitly synthetic; no real medical records",
+  "checks": [
+    "Right sidebar combines application navigation and client actions; case selection persists in URLs and form links",
+    "Client details save through the real update API contract",
+    "Mobile right drawer, Escape dismissal, focus restoration and no page overflow",
+    "Reviewed module configuration persists and updates navigation availability",
+    "Dedicated password/MFA login and provider isolation",
+    "Protected preview, required attestation, retained examination on conflict, signed confirmation and read-only history of sign-offs and corrections",
+    "Explicit sign-out clears the medical workspace"
+  ],
+  "errors": [],
+  "writes": [
+    {
+      "path": "/api/auth/refresh"
+    },
+    {
+      "path": "/api/compassion/clients/synthetic-client"
+    },
+    {
+      "path": "/api/auth/refresh"
+    },
+    {
+      "path": "/api/compassion/modules"
+    },
+    {
+      "path": "/api/auth/refresh"
+    },
+    {
+      "path": "/api/auth/refresh"
+    },
+    {
+      "path": "/api/compassion/physician-review/login"
+    },
+    {
+      "path": "/api/compassion/physician-review/verify"
+    },
+    {
+      "path": "/api/compassion/physician-review/ultrasounds/synthetic-exam/sign"
+    },
+    {
+      "path": "/api/compassion/physician-review/ultrasounds/synthetic-exam/sign"
+    },
+    {
+      "path": "/api/compassion/physician-review/logout"
+    }
+  ],
+  "requests": [
+    "POST /api/auth/refresh",
+    "GET /api/auth/me",
+    "GET /api/compassion/access",
+    "GET /api/compassion/clients/synthetic-client",
+    "GET /api/compassion/clients/synthetic-client/forms",
+    "PUT /api/compassion/clients/synthetic-client",
+    "GET /api/compassion/clients/synthetic-client",
+    "POST /api/auth/refresh",
+    "GET /api/auth/me",
+    "GET /api/compassion/access",
+    "GET /api/compassion/modules",
+    "PUT /api/compassion/modules",
+    "POST /api/auth/refresh",
+    "POST /api/auth/refresh",
+    "GET /api/auth/me",
+    "GET /api/compassion/access",
+    "GET /api/compassion/reviewers",
+    "POST /api/compassion/physician-review/login",
+    "POST /api/compassion/physician-review/verify",
+    "GET /api/compassion/physician-review/session",
+    "GET /api/compassion/physician-review/ultrasounds",
+    "GET /api/compassion/physician-review/ultrasounds/synthetic-exam",
+    "GET /api/compassion/physician-review/ultrasounds/synthetic-exam/documents/synthetic-scan",
+    "POST /api/compassion/physician-review/ultrasounds/synthetic-exam/sign",
+    "POST /api/compassion/physician-review/ultrasounds/synthetic-exam/sign",
+    "GET /api/compassion/physician-review/ultrasounds",
+    "GET /api/compassion/physician-review/ultrasounds",
+    "GET /api/compassion/physician-review/ultrasounds/synthetic-exam",
+    "POST /api/compassion/physician-review/logout"
+  ]
+}

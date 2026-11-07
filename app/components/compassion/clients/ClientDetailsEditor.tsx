@@ -1,0 +1,11 @@
+"use client";
+import { useState } from "react";
+import { CareCard, CareError, careWrite } from "../care-ui";
+export interface EditableClient { id: string; firstName: string; lastName: string; preferredName?: string; dateOfBirth?: string; email?: string; phone?: string; addressLine1?: string; city?: string; state?: string; zip?: string; referralSource?: string }
+export default function ClientDetailsEditor({ client, onClose, onSaved }: { client: EditableClient; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [values, setValues] = useState<Record<string,string>>(() => Object.fromEntries(["firstName","lastName","preferredName","dateOfBirth","email","phone","addressLine1","city","state","zip","referralSource"].map(key => [key, String(client[key as keyof EditableClient] || "").slice(0,key === "dateOfBirth" ? 10 : undefined)])));
+  const [busy,setBusy] = useState(false); const [error,setError] = useState("");
+  return <CareCard title="Edit client details"><form className="care-card-body care-form" onSubmit={async e => { e.preventDefault(); setBusy(true); setError(""); try { await careWrite(`/clients/${client.id}`, Object.fromEntries(Object.entries(values).map(([key,value]) => [key,value || null])), "PUT"); await onSaved(); onClose(); } catch(e) { setError(e instanceof Error ? e.message : "Unable to save client details."); } finally { setBusy(false); } }}>
+    <CareError error={error}/><div className="care-form-grid">{[["firstName","First name"],["lastName","Last name"],["preferredName","Preferred name"],["dateOfBirth","Date of birth"],["email","Email"],["phone","Phone"],["addressLine1","Street address"],["city","City"],["state","State"],["zip","ZIP"],["referralSource","Referral source"]].map(([key,label]) => <label key={key}>{label}<input type={key === "dateOfBirth" ? "date" : key === "email" ? "email" : "text"} required={key === "firstName" || key === "lastName"} value={values[key]} onChange={e=>setValues({...values,[key]:e.target.value})} /></label>)}</div><div className="care-actions"><button className="care-button" disabled={busy}>{busy ? "Saving…" : "Save client details"}</button><button type="button" className="care-button secondary" disabled={busy} onClick={()=>{ if(window.confirm("Discard your unsaved client edits?"))onClose(); }}>Cancel</button></div>
+  </form></CareCard>;
+}

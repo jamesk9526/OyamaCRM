@@ -1,3 +1,4 @@
+import { checkEndpointModules } from "./module-policy.js";
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { atomic, prisma } from "./database.js";
 import { hasCareCapability, org, audit, type CareCapability } from "./security.js";
@@ -78,6 +79,7 @@ export function careTransaction(handler: (req: Request, res: Response) => Promis
         if (!membership?.active || membership.role !== res.locals.careRole) {
           res.statusCode = 403; payload = { error: { code: "MEMBERSHIP_CHANGED", message: "Your client-care access changed. Refresh the workspace." } }; throw new Error("CARE_RESPONSE_ROLLBACK");
         }
+        if (!await checkEndpointModules(req, res)) { res.statusCode = 403; payload = { error: { code: "MODULE_UNAVAILABLE", message: "This module is no longer available." } }; throw new Error("CARE_RESPONSE_ROLLBACK"); }
         await handler(req, res);
         if (res.statusCode >= 400) throw new Error("CARE_RESPONSE_ROLLBACK");
         const row = payload as { id?: string; startTime?: Date; endTime?: Date; status?: string; assignedCompassionStaffId?: string | null } | undefined;

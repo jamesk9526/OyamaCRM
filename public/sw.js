@@ -1,5 +1,4 @@
-/* eslint-disable no-restricted-globals */
-const CACHE_VERSION = "oyamacrm-v2.0.0";
+const CACHE_VERSION = "oyamacrm-v2.0.1";
 const APP_SHELL_CACHE = `app-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 const OFFLINE_URL = "/offline";
@@ -39,6 +38,8 @@ self.addEventListener("fetch", (event) => {
   if (requestUrl.pathname.startsWith("/_next/") || requestUrl.pathname.startsWith("/__nextjs/") || requestUrl.pathname.startsWith("/api/")) {
     return;
   }
+
+  if (requestUrl.pathname.startsWith("/compassion")) return;
 
   // Navigation (HTML) requests: always network-first, no caching.
   // Caching HTML causes stale Next.js chunk URLs after a new deployment.

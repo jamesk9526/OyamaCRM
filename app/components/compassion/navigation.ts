@@ -1,28 +1,12 @@
 import { Activity, CalendarDays, ClipboardCheck, ClipboardList, FileText, GraduationCap, HeartHandshake, LayoutGrid, MessageSquare, Settings2, ShieldCheck, Stethoscope, Upload, Users, UserRoundCog, Clock3, DoorOpen, Globe, ScanLine } from "lucide-react";
 
-export const careNavigation = [
-  { label: "Daily work", items: [
-    { name: "Today", href: "/compassion", icon: LayoutGrid, capability: "records" },
-    { name: "Schedule", href: "/compassion/appointments", icon: CalendarDays, capability: "schedule" },
-    { name: "Client Files", href: "/compassion/clients", icon: Users, capability: "records" },
-    { name: "Follow-ups", href: "/compassion/follow-ups", icon: ClipboardCheck, capability: "casework" },
-  ] },
-  { label: "Care & support", items: [
-    { name: "Cases", href: "/compassion/cases", icon: HeartHandshake, capability: "casework" },
-    { name: "Intake", href: "/compassion/intake", icon: ClipboardList, capability: "casework" },
-    { name: "Clinical care", href: "/compassion/care", icon: Stethoscope, capability: "clinical" },
-    { name: "Ultrasounds", href: "/compassion/ultrasounds", icon: ScanLine, capability: "clinical" },
-    { name: "Classes & assistance", href: "/compassion/classes", icon: GraduationCap, capability: "casework" },
-    { name: "Messages", href: "/compassion/messages", icon: MessageSquare, capability: "messages" },
-  ] },
-  { label: "Tools", items: [
-    { name: "Surveys", href: "/surveys?audience=CLIENT", icon: ClipboardList, capability: "casework" },
-    { name: "Client letters", href: "/compassion/letters", icon: FileText, capability: "casework" },
-    { name: "Reports", href: "/compassion/reports", icon: Activity, capability: "export" },
-  ] },
-];
+import { MODULE_NAVIGATION } from "@/server/src/compassion/contracts/modules";
+const icons = { Activity, CalendarDays, ClipboardCheck, ClipboardList, FileText, GraduationCap, HeartHandshake, LayoutGrid, MessageSquare, Stethoscope, Users, ScanLine };
+export const careNavigation = (["Daily work", "Care & support", "Tools"] as const).map(label => ({ label, items: Object.values(MODULE_NAVIGATION).flat().filter(item=>item.group===label).sort((a,b)=>a.order-b.order).map(item=>({...item,icon:icons[item.icon as keyof typeof icons] || LayoutGrid})) }));
 
 export const careSettings = [
+  { name: "Modules", href: "/compassion/settings/modules", icon: LayoutGrid, capability: "manage", description: "Enable modules and restrict access by care role." },
+  { name: "Physician reviewers", href: "/compassion/settings/reviewers", icon: ShieldCheck, capability: "manage", description: "Provision ultrasound-only physician accounts and manage authentication." },
   { name: "Overview", href: "/compassion/settings", icon: Settings2, capability: "manage", description: "Your care workspace configuration and service readiness." },
   { name: "Staff directory", href: "/compassion/settings/staff", icon: Users, capability: "manage", description: "Manage staff profiles, volunteers, and scheduling visibility." },
   { name: "Access & roles", href: "/compassion/settings/access", icon: UserRoundCog, capability: "manage", description: "Assign care memberships and clinical permissions." },

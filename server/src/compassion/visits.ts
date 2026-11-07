@@ -1,3 +1,4 @@
+import { enabled } from "./module-policy.js";
 import { Router } from "express";
 import { CompassionServiceType } from "@prisma/client";
 import { prisma } from "./database.js";
@@ -14,7 +15,7 @@ router.get("/visits", ...route("casework", async (req, res) => {
   await audit(req, "VISITS_READ", clientId);
   res.json(rows.map(({ encryptedFacts, ...row }) => {
     const facts: VisitFacts = JSON.parse(unseal(encryptedFacts, `${org(req)}:${clientId}:visit`));
-    if (!hasCareCapability(res.locals.careRole, "clinical")) for (const column of CENTER_COLUMNS.filter(c => c.clinical)) if (facts.metrics) delete facts.metrics[column.key];
+    if (!(hasCareCapability(res.locals.careRole, "clinical") && enabled(res,"clinical"))) for (const column of CENTER_COLUMNS.filter(c => c.clinical)) if (facts.metrics) delete facts.metrics[column.key];
     return { ...row, facts };
   }));
 }));
@@ -45,7 +46,7 @@ router.patch("/visits/:id", ...route("casework", async (req, res) => {
   const metrics = req.body.metrics ?? {}; check(metrics && typeof metrics === "object" && !Array.isArray(metrics), "Invalid visit facts.");
   for (const [key, value] of Object.entries(metrics)) {
     const column = CENTER_COLUMNS.find(c => c.key === key); check(column && typeof value === "boolean", "Unknown visit statistic.");
-    if (column.clinical && !hasCareCapability(res.locals.careRole, "clinical")) throw new CareError(403, "CLINICAL_ACCESS_REQUIRED", "Clinical statistics require clinical access.");
+    if (column.clinical && !(hasCareCapability(res.locals.careRole, "clinical") && enabled(res,"clinical"))) throw new CareError(403, "CLINICAL_ACCESS_REQUIRED", "Clinical statistics require clinical access.");
   }
   const facts = { ...existing, metrics: { ...existing.metrics, ...metrics } };
   await prisma.compassionVisit.update({ where: { id: row.id }, data: { status: req.body.status, encryptedFacts: seal(JSON.stringify(facts), `${org(req)}:${row.clientId}:visit`) } });
@@ -54,12 +55,12 @@ router.patch("/visits/:id", ...route("casework", async (req, res) => {
 router.get("/visits/:id/services", ...route("casework", async (req, res) => {
   const visit = await prisma.compassionVisit.findFirst({ where: { id: String(req.params.id), organizationId: org(req) } }); check(visit, "Visit not found.");
   const rows = await prisma.compassionService.findMany({ where: { organizationId: org(req), clientId: visit.clientId, visitId: visit.id }, select: { id: true, serviceType: true, quantity: true, serviceDate: true }, orderBy: { serviceDate: "asc" } });
-  res.json(rows.filter(r => hasCareCapability(res.locals.careRole, "clinical") || !["PREGNANCY_TEST", "ULTRASOUND"].includes(r.serviceType)));
+  res.json(rows.filter(r => (hasCareCapability(res.locals.careRole, "clinical") && enabled(res,"clinical")) || !["PREGNANCY_TEST", "ULTRASOUND"].includes(r.serviceType)));
 }));
 router.post("/visits/:id/services", ...route("casework", async (req, res) => {
   const visit = await prisma.compassionVisit.findFirst({ where: { id: String(req.params.id), organizationId: org(req) } }); check(visit && visit.status !== "VOID", "Choose an active visit.");
   check(Object.values(CompassionServiceType).includes(req.body.serviceType), "Choose a service type.");
-  if (["PREGNANCY_TEST", "ULTRASOUND"].includes(req.body.serviceType) && !hasCareCapability(res.locals.careRole, "clinical")) throw new CareError(403, "CLINICAL_ACCESS_REQUIRED", "Medical services require clinical access.");
+  if (["PREGNANCY_TEST", "ULTRASOUND"].includes(req.body.serviceType) && !(hasCareCapability(res.locals.careRole, "clinical") && enabled(res,"clinical"))) throw new CareError(403, "CLINICAL_ACCESS_REQUIRED", "Medical services require clinical access.");
   const sourceKey = text(req.body.sourceKey, 191);
   const old = await prisma.compassionService.findFirst({ where: { organizationId: org(req), sourceKey } });
   if (old) { check(old.visitId === visit.id && old.serviceType === req.body.serviceType && old.quantity === (req.body.quantity ?? 1), "This retry key already saved a different service. Refresh before recording another."); res.json({ id: old.id }); return; }
@@ -85,12 +86,13 @@ router.get("/reports/monthly", ...route("export", async (req, res) => {
   const definition = req.query.version === "0" ? null : await prisma.compassionReportDefinition.findFirst({ where: { organizationId, ...(req.query.version ? { version: integer(Number(req.query.version), 1, 100000) } : {}) }, orderBy: { version: "desc" } });
   check(!req.query.version || req.query.version === "0" || definition, "Report definition not found.");
   const configured = (definition?.config ?? []) as unknown as CenterDefinition[];
-  const columns = CENTER_COLUMNS.filter(c => !c.clinical || hasCareCapability(res.locals.careRole, "clinical")).map(c => ({ ...c, ...configured.find(d => d.key === c.key), configured: configured.find(d => d.key === c.key)?.configured ?? false }));
+  const columns = CENTER_COLUMNS.filter(c => !c.clinical || (hasCareCapability(res.locals.careRole, "clinical") && enabled(res,"clinical"))).map(c => ({ ...c, ...configured.find(d => d.key === c.key), configured: configured.find(d => d.key === c.key)?.configured ?? false }));
   const visits = await prisma.compassionVisit.findMany({ where: { organizationId, visitDate: { gte: start, lt: end }, status: { not: "VOID" }, ...(location ? { location } : {}) }, orderBy: { visitDate: "asc" }, take: 10001 });
   check(visits.length <= 10000, "Narrow the location filter; this register exceeds 10,000 visits.");
   const clients = await prisma.compassionClient.findMany({ where: { organizationId, id: { in: [...new Set(visits.map(v => v.clientId))] } }, select: patientProjection });
-  const services = await prisma.compassionService.findMany({ where: { organizationId, visitId: { in: visits.filter(v => v.status === "COMPLETED").map(v => v.id) } }, select: { id: true, visitId: true, serviceType: true, quantity: true }, take:50001 });
-  check(services.length<=50000,"Narrow the location filter; this register exceeds 50,000 service entries.");
+  const allServices = await prisma.compassionService.findMany({ where: { organizationId, visitId: { in: visits.filter(v => v.status === "COMPLETED").map(v => v.id) } }, select: { id: true, visitId: true, serviceType: true, quantity: true }, take:50001 });
+  const services = allServices.filter(service=>service.serviceType !== "ULTRASOUND" || enabled(res,"ultrasounds"));
+  check(allServices.length<=50000,"Narrow the location filter; this register exceeds 50,000 service entries.");
   const patientsById=new Map(clients.map(c=>[c.id,c]));
   const servicesByVisit=new Map<string,typeof services>();
   for(const service of services) if(service.visitId) { const entries=servicesByVisit.get(service.visitId) ?? []; entries.push(service);servicesByVisit.set(service.visitId,entries); }
@@ -99,12 +101,12 @@ router.get("/reports/monthly", ...route("export", async (req, res) => {
   const appointments = await prisma.compassionAppointment.findMany({ where: { organizationId, startTime: { gte: new Date(start.getTime() - 86400000), lt: new Date(end.getTime() + 86400000) }, ...(location ? { location } : {}) }, select: { id: true, startTime: true, status: true },take:10001 });
   check(appointments.length<=10000,"Narrow the location filter; this register exceeds 10,000 bookings.");
   const dateFormatter=new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit" });
-  const monthAppointments = appointments.filter(a => { const parts = dateFormatter.formatToParts(a.startTime); return `${parts.find(p => p.type === "year")?.value}-${parts.find(p => p.type === "month")?.value}` === req.query.month; });
+  const monthAppointments = (enabled(res,"scheduling") ? appointments : []).filter(a => { const parts = dateFormatter.formatToParts(a.startTime); return `${parts.find(p => p.type === "year")?.value}-${parts.find(p => p.type === "month")?.value}` === req.query.month; });
   const rows = visits.map(v => {
     const patient = patientsById.get(v.clientId); const facts: VisitFacts = JSON.parse(unseal(v.encryptedFacts, `${organizationId}:${v.clientId}:visit`));
     const delivered = v.status === "COMPLETED" ? servicesByVisit.get(v.id) ?? [] : [];
     return { id: v.id, clientId: v.clientId, clientName: patient ? `${patient.lastName}, ${patient.firstName}` : "Client unavailable", visitDate: v.visitDate.toISOString().slice(0,10), location: v.location, status: v.status,
-      services: delivered.filter(s => hasCareCapability(res.locals.careRole, "clinical") || !["PREGNANCY_TEST", "ULTRASOUND"].includes(s.serviceType)),
+      services: delivered.filter(s => (hasCareCapability(res.locals.careRole, "clinical") && enabled(res,"clinical")) || !["PREGNANCY_TEST", "ULTRASOUND"].includes(s.serviceType)),
       supplies: delivered.filter(s => ["DIAPERS", "CLOTHING", "FORMULA"].includes(s.serviceType)).reduce((n,s) => n + (s.quantity ?? 0), 0),
       metrics: Object.fromEntries(columns.map(c => [c.key, c.configured ? (v.status === "COMPLETED" && facts.metrics?.[c.key] === true ? 1 : 0) : null])) };
   });

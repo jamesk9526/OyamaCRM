@@ -1,3 +1,4 @@
+import { organizationModules } from "../compassion/module-policy.js";
 import { randomUUID } from "node:crypto";
 import { json as parseJson, Router } from "express";
 import rateLimit from "express-rate-limit";
@@ -28,10 +29,12 @@ async function lookup(token: unknown, audience: SurveyAudience) {
   });
   if (invitation?.revision.survey.identity === "LINKED") {
     if (invitation.revokedAt || invitation.expiresAt <= new Date()) throw missing();
+    if (audience === "CLIENT" && !(await organizationModules(invitation.revision.survey.organizationId)).surveys) throw missing();
     return { invitation, revision: invitation.revision };
   }
   const revision = await db.surveyRevision.findFirst({ where: { publicKey: token, survey: { audience, identity: "ANONYMOUS" } }, include: { survey: true } });
   if (!revision || revision.survey.identity !== "ANONYMOUS") throw missing();
+  if (audience === "CLIENT" && !(await organizationModules(revision.survey.organizationId)).surveys) throw missing();
   return { invitation: null, revision };
 }
 

@@ -11,6 +11,9 @@ import { identityRoutes } from "./identity.js";
 import { ultrasoundRoutes } from "./ultrasounds.js";
 import { OPEN_CARE_TASK_STATUSES } from "./care-team.js";
 import { paperFormRoutes } from "./paper-forms.js";
+import { moduleRoutes } from "./modules.js";
+import { reviewerAdminRoutes } from "./reviewers.js";
+import { enabled, organizationModules, projectModules } from "./module-policy.js";
 import { visitRoutes } from "./visits.js";
 
 export const careRoutes = Router();
@@ -47,7 +50,7 @@ router.use(async (req, res, next) => {
   }
   next();
 });
-router.use(paperFormRoutes, visitRoutes, clinicalRoutes, ultrasoundRoutes, migrationRoutes, identityRoutes, letterRoutes);
+router.use(moduleRoutes, reviewerAdminRoutes, paperFormRoutes, visitRoutes, clinicalRoutes, ultrasoundRoutes, migrationRoutes, identityRoutes, letterRoutes);
 
 router.get("/today", ...route("records", async (req, res) => {
   const now = new Date(); const start = req.query.start ? date(req.query.start) : new Date(now); if (!req.query.start) start.setHours(0, 0, 0, 0);
@@ -59,7 +62,7 @@ router.get("/today", ...route("records", async (req, res) => {
     prisma.compassionCase.count({ where: { ...scope, caseStatus: "OPEN" } }),
     prisma.compassionAppointment.findMany({ where: { ...scope, startTime: { gte: start, lt: end } }, select: { id: true, startTime: true, appointmentType: true, status: true, location: true, client: { select: { id: true, firstName: true, lastName: true } } }, orderBy: { startTime: "asc" }, take: 100 }),
     res.locals.careCapabilities.includes("casework") ? prisma.compassionFollowUp.findMany({ where: { ...scope, assignedStaffId: req.user!.sub, status: { in: [...OPEN_CARE_TASK_STATUSES] }, dueDate: { lt: end } }, select: { id: true, clientId: true, title: true, dueDate: true, status: true, priority: true, chartId: true }, orderBy: { dueDate: "asc" }, take: 15 }) : Promise.resolve([]),
-    res.locals.careCapabilities.includes("clinical") ? prisma.compassionChart.count({ where: { ...scope, status: "REVIEW" } }) : Promise.resolve(null),
+    res.locals.careCapabilities.includes("clinical") ? prisma.compassionChart.count({ where: { ...scope, status: "REVIEW", ...(!enabled(res,"ultrasounds") ? {kind:{not:"ULTRASOUND"}} : {}) } }) : Promise.resolve(null),
     prisma.compassionIntake.count({ where: { ...scope, status: { in: ["REQUESTED", "RETURNED"] } } }),
   ]);
   res.json({ activeClients, activeCases, appointments, followUps, pendingApprovals, incompleteIntake });
@@ -86,6 +89,8 @@ router.post("/memberships", ...route("manage", async (req, res) => {
     check(await prisma.compassionMembership.count({ where: { organizationId: org(req), active: true, role: "ADMIN" } }) > 1, "Keep at least one active Compassion administrator.");
   }
   const row = await prisma.compassionMembership.upsert({ where: { organizationId_userId: { organizationId: org(req), userId } }, create: { organizationId: org(req), userId, role: req.body.role, active }, update: { role: req.body.role, active } });
+  check(req.body.role !== "ULTRASOUND_REVIEWER" || (await prisma.user.findFirst({ where: { id: userId, organizationId: org(req), role: "compassion_user" } })), "Use a dedicated care-only account for ultrasound reviewers.");
+  await prisma.compassionReviewerSession.updateMany({ where: { organizationId: org(req), userId, revokedAt: null }, data: { revokedAt: new Date() } });
   await audit(req, "MEMBERSHIP_UPDATED", row.id, { role: row.role, active }); res.json(row);
 }));
 router.get("/audit", ...route("manage", async (req, res) => {
@@ -219,13 +224,13 @@ router.post("/staff-hours", ...route("manage", async (req, res) => {
 // Public routes authenticate only purpose-specific, expiring opaque tokens.
 publicCareRoutes.get("/intake/:token", async (req, res) => {
   const row = await prisma.compassionIntake.findUnique({ where: { tokenHash: digest(String(req.params.token)) } });
-  if (!row || row.expiresAt <= new Date() || row.status !== "REQUESTED") { res.status(404).json({ error: { message: "This intake link is expired or already submitted." } }); return; }
+  if (!row || row.expiresAt <= new Date() || row.status !== "REQUESTED" || !(await organizationModules(row.organizationId)).casework) { res.status(404).json({ error: { message: "This intake link is expired or already submitted." } }); return; }
   res.json({ language: row.language, template: row.template, consentVersion: row.consentVersion });
 });
 publicCareRoutes.post("/intake/:token", async (req, res, next) => {
   try {
     const row = await prisma.compassionIntake.findUnique({ where: { tokenHash: digest(String(req.params.token)) } });
-    check(row && row.expiresAt > new Date() && row.status === "REQUESTED", "This intake link is expired or already submitted.");
+    check(row && row.expiresAt > new Date() && row.status === "REQUESTED" && (await organizationModules(row.organizationId)).casework, "This intake link is expired or already submitted.");
     check(req.body.consent === true && typeof req.body.signedName === "string" && req.body.signedName.trim(), "Confirm consent and enter your name.");
     const template = row.template as { fields: Array<{ key: string; required?: boolean }> };
     check(req.body.answers && typeof req.body.answers === "object", "Complete the intake form.");
@@ -239,20 +244,24 @@ publicCareRoutes.post("/intake/:token", async (req, res, next) => {
 publicCareRoutes.use("/portal/:token", async (req, res, next) => {
   const row = await prisma.compassionPortalAccess.findUnique({ where: { tokenHash: digest(String(req.params.token)) } });
   if (!row || row.revokedAt || row.expiresAt <= new Date()) { res.status(401).json({ error: { message: "Portal access expired. Request a new link from your care team." } }); return; }
-  res.locals.portal = row; next();
+  const modules = await organizationModules(row.organizationId);
+  if (!modules.communications) { res.status(401).json({ error: { message: "Portal access unavailable." } }); return; }
+  res.locals.publicModules = modules; res.locals.portal = row; next();
 });
 publicCareRoutes.get("/portal/:token", async (_req, res) => {
   const grant = res.locals.portal as { organizationId: string; clientId: string };
   const scope = { organizationId: grant.organizationId, clientId: grant.clientId };
   const [messages, documents, appointments, entries, enrollments] = await Promise.all([
     prisma.compassionMessage.findMany({ where: scope, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 250 }),
-    prisma.compassionDocument.findMany({ where: { ...scope, shared: true, deletedAt: null }, select: { id: true, name: true, mimeType: true } }),
+    prisma.compassionDocument.findMany({ where: { ...scope, shared: true, deletedAt: null }, select: { id: true, name: true, mimeType: true, chartId: true } }),
     prisma.compassionAppointment.findMany({ where: { ...scope, startTime: { gte: new Date() }, status: "SCHEDULED" }, select: { id: true, startTime: true, location: true } }),
     prisma.compassionPointEntry.aggregate({ where: scope, _sum: { amount: true } }),
     prisma.compassionEnrollment.findMany({ where: scope, select: { classId: true, status: true } }),
   ]);
+  const excludedCharts = !res.locals.publicModules.ultrasounds ? await prisma.compassionChart.findMany({ where: { organizationId: grant.organizationId, clientId: grant.clientId, kind: "ULTRASOUND" }, select: { id: true } }) : [];
+  const sharedDocuments = documents.filter(doc=>!excludedCharts.some(chart=>chart.id===doc.chartId)).map(({chartId,...doc})=>{void chartId;return doc;});
   await prisma.compassionAudit.create({ data: { ...{ organizationId: grant.organizationId }, action: "PORTAL_VIEWED", entityId: grant.clientId } });
-  res.json({ messages: messages.reverse().map(({ encryptedContent, ...row }) => ({ id: row.id, direction: row.direction, createdAt: row.createdAt, content: unseal(encryptedContent, `${scope.organizationId}:${scope.clientId}:message`) })), documents, appointments, points: entries._sum.amount ?? 0, enrollments });
+  res.json(projectModules({ messages: messages.reverse().map(({ encryptedContent, ...row }) => ({ id: row.id, direction: row.direction, createdAt: row.createdAt, content: unseal(encryptedContent, `${scope.organizationId}:${scope.clientId}:message`) })), documents:sharedDocuments, appointments, points: entries._sum.amount ?? 0, enrollments }, res.locals.publicModules));
 });
 publicCareRoutes.post("/portal/:token/messages", async (req, res) => {
   const grant = res.locals.portal as { organizationId: string; clientId: string };
@@ -265,6 +274,8 @@ publicCareRoutes.get("/portal/:token/documents/:id", async (req, res) => {
   const grant = res.locals.portal as { organizationId: string; clientId: string };
   const row = await prisma.compassionDocument.findFirst({ where: { id: String(req.params.id), organizationId: grant.organizationId, clientId: grant.clientId, shared: true, deletedAt: null } });
   if (!row) { res.status(404).json({ error: { message: "Document not found." } }); return; }
+  const linked = row.chartId ? await prisma.compassionChart.findFirst({ where: { id: row.chartId, organizationId: grant.organizationId }, select: { kind: true } }) : null;
+  if (!res.locals.publicModules.clinical || (linked?.kind === "ULTRASOUND" && !res.locals.publicModules.ultrasounds)) { res.status(404).json({ error: { message: "Document unavailable." } }); return; }
   await prisma.compassionAudit.create({ data: { organizationId: grant.organizationId, action: "PORTAL_DOCUMENT_DOWNLOADED", entityId: row.id } });
   res.json({ name: row.name, mimeType: row.mimeType, base64: unseal(row.encryptedContent, `${grant.organizationId}:${grant.clientId}:document`) });
 });

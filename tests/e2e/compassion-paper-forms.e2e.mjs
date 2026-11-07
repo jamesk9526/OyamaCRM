@@ -5,7 +5,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import templateModule from '../../server/src/compassion/form-templates.ts';
 const { FORM_TEMPLATES } = templateModule;
 const base=process.env.COMPASSION_UI_WEB||'http://127.0.0.1:6381';
-const evidence='docs/status/audit-artifacts/2026-11-05-compassion-paper-forms';await mkdir(evidence,{recursive:true});
+const evidence=process.env.COMPASSION_UI_EVIDENCE||'docs/status/audit-artifacts/2026-11-05-compassion-paper-forms';await mkdir(evidence,{recursive:true});
 const browser=await chromium.launch({headless:true});const context=await browser.newContext({viewport:{width:1440,height:1080},timezoneId:'America/Chicago'});const page=await context.newPage();
 const errors=[],checks=[],requests=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
 let role='ADMIN';let failSave=false;let revision=0;const records=new Map();const documents=[];

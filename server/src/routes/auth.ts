@@ -246,6 +246,8 @@ async function issueSessionForUser(input: {
   };
   loginAction: "LOGIN" | "LOGIN_MFA";
 }): Promise<void> {
+  const reviewer = await prisma.compassionMembership.findFirst({ where: { userId: input.user.id, role: "ULTRASOUND_REVIEWER" } });
+  if (reviewer) { input.res.status(403).json({ error: { code: "REVIEWER_PORTAL_REQUIRED", message: "Use the dedicated Compassion physician login." } }); return; }
   const authUser = await buildAuthUserPayload(input.user);
   const accessToken = signAccessToken({
     sub: input.user.id,
@@ -718,6 +720,11 @@ router.post("/refresh", async (req: Request, res: Response) => {
     return res.status(204).end();
   }
 
+  if (await prisma.compassionMembership.findFirst({ where: { userId: user.id, role: "ULTRASOUND_REVIEWER" } })) {
+    await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
+    res.clearCookie(REFRESH_COOKIE, { path: "/api/auth" });
+    return res.status(403).json({ error: { code: "REVIEWER_PORTAL_REQUIRED", message: "Use the physician review login." } });
+  }
   const newRefresh = signRefreshToken(user.id);
   const rotated = await prisma.$transaction(async (tx) => {
     const deleted = await tx.refreshToken.deleteMany({ where: { token, userId: user.id } });

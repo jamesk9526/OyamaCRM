@@ -1,0 +1,83 @@
+[
+  {
+    "file": "case_intake-print.pdf",
+    "beforePages": 3,
+    "afterPages": 3,
+    "pages": [
+      {
+        "page": 1,
+        "letterSize": true,
+        "textMatches": true,
+        "rasterMatches": true
+      },
+      {
+        "page": 2,
+        "letterSize": true,
+        "textMatches": true,
+        "rasterMatches": true
+      },
+      {
+        "page": 3,
+        "letterSize": true,
+        "textMatches": true,
+        "rasterMatches": true
+      }
+    ]
+  },
+  {
+    "file": "health_pregnancy_intake-print.pdf",
+    "beforePages": 3,
+    "afterPages": 3,
+    "pages": [
+      {
+        "page": 1,
+        "letterSize": true,
+        "textMatches": true,
+        "rasterMatches": true
+      },
+      {
+        "page": 2,
+        "letterSize": true,
+        "textMatches": true,
+        "rasterMatches": true
+      },
+      {
+        "page": 3,
+        "letterSize": true,
+        "textMatches": true,
+        "rasterMatches": true
+      }
+    ]
+  },
+  {
+    "file": "case-long-answer-print.pdf",
+    "beforePages": 4,
+    "afterPages": 4,
+    "pages": [
+      {
+        "page": 1,
+        "letterSize": true,
+        "textMatches": true,
+        "rasterMatches": true
+      },
+      {
+        "page": 2,
+        "letterSize": true,
+        "textMatches": true,
+        "rasterMatches": true
+      },
+      {
+        "page": 3,
+        "letterSize": true,
+        "textMatches": true,
+        "rasterMatches": true
+      },
+      {
+        "page": 4,
+        "letterSize": true,
+        "textMatches": true,
+        "rasterMatches": true
+      }
+    ]
+  }
+]

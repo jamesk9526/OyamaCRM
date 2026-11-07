@@ -1,3 +1,4 @@
+import { organizationModules } from "../compassion/module-policy.js";
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import type { Prisma, Survey, SurveyAudience } from "@prisma/client";
 import { prisma as db } from "../compassion/database.js";
@@ -54,6 +55,7 @@ export async function surveyTransaction<T>(organizationId: string, surveyId: str
     await tx.$queryRaw`SELECT id FROM Survey WHERE organizationId = ${organizationId} AND id = ${surveyId} FOR UPDATE`;
     const survey = await tx.survey.findUnique({ where: { organizationId_id: { organizationId, id: surveyId } } });
     if (!survey) throw new SurveyError(404, "NOT_FOUND", "Survey not found.");
+    if (survey.audience === "CLIENT" && !(await organizationModules(organizationId)).surveys) throw new SurveyError(403,"MODULE_UNAVAILABLE","Client surveys are not enabled.");
     return run(tx, survey);
   }, { timeout: 15_000 });
 }

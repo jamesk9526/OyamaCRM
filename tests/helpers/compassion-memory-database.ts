@@ -8,16 +8,18 @@ function matches(row: Row, where: Row = {}): boolean {
     if (value === undefined) return true;
     if (key === "AND") return (Array.isArray(value) ? value : [value]).every((part) => matches(row, part as Row));
     if (key === "OR") return (value as Row[]).some((part) => matches(row, part));
-    if (key === "organizationId_userId") return matches(row, value as Row);
+    if (["organizationId_userId", "organizationId_pluginKey"].includes(key)) return matches(row, value as Row);
     if (value && typeof value === "object" && !(value instanceof Date)) {
       const filter = value as Row;
       return Object.entries(filter).every(([operator, operand]) => {
+        if (operator === "notIn") return !(operand as unknown[]).includes(row[key]);
         if (operator === "in") return (operand as unknown[]).includes(row[key]);
         if (operator === "not") return row[key] !== operand;
         if (operator === "lt") return (row[key] as number) < (operand as number);
         if (operator === "gt") return (row[key] as number) > (operand as number);
         if (operator === "gte") return (row[key] as number) >= (operand as number);
         if (operator === "lte") return (row[key] as number) <= (operand as number);
+        if (operator === "startsWith") return String(row[key]).startsWith(String(operand));
         if (operator === "contains") return String(row[key]).toLowerCase().includes(String(operand).toLowerCase());
         throw new Error(`Unsupported synthetic test operator: ${operator}`);
       });
@@ -54,6 +56,8 @@ export const careMemoryDatabase = new Proxy({}, {
         });
         return found.slice(Number(args.skip ?? 0), args.take ? Number(args.skip ?? 0) + Number(args.take) : undefined).map((row) => selectRow(row, args));
       },
+      async upsert(args: Row) { const row = find(args)[0]; if (row) { Object.assign(row, args.update, { updatedAt: new Date(Date.now() + ++sequence) }); return { ...row }; } const created = { id: `synthetic-${++sequence}`, createdAt: new Date(), updatedAt: new Date(), ...args.create as Row }; rows().push(created); return { ...created }; },
+      async deleteMany(args: Row) { const found = find(args); careRows[property] = rows().filter(row => !found.includes(row)); return { count: found.length }; },
       async count(args: Row = {}) { return find(args).length; },
       async groupBy(args: Row) {
         const groups = new Map<string, { fields: Row; count: number }>();
@@ -64,7 +68,7 @@ export const careMemoryDatabase = new Proxy({}, {
         return [...groups.values()].map((group) => ({ ...group.fields, _count: { _all: group.count } }));
       },
       async create(args: Row) {
-        const row = { id: `synthetic-${++sequence}`, createdAt: new Date(), updatedAt: new Date(Date.now() + sequence), version: 1, templateVersion: 1, chartId: null, deletedAt: null, status: property === "compassionFollowUp" ? "PENDING" : "DRAFT", ...args.data as Row };
+        const row = { id: `synthetic-${++sequence}`, createdAt: new Date(), updatedAt: new Date(Date.now() + sequence), version: 1, templateVersion: 1, chartId: null, deletedAt: null, revokedAt: null, mfaFailures: 0, ...(property === "compassionReviewerAuthenticator" ? { lastStep: BigInt(0) } : {}), status: property === "compassionFollowUp" ? "PENDING" : "DRAFT", ...args.data as Row };
         rows().push(row); return selectRow(row, args);
       },
       async update(args: Row) { const row = find(args)[0]; if (!row) throw new Error("Synthetic record missing"); Object.assign(row, args.data, { updatedAt: new Date(Date.now() + ++sequence) }); return { ...row }; },

@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import mysql from "mysql2/promise";
 
-const names = ["20261029120000_refactor_compassion_client_care", "20261029130000_compassion_boundaries_and_arrivals", "20261029140000_compassion_recovery_compatibility", "20261103100000_compassion_chart_follow_ups", "20261105190000_compassion_paper_forms_visits"];
+const names = ["20261029120000_refactor_compassion_client_care", "20261029130000_compassion_boundaries_and_arrivals", "20261029140000_compassion_recovery_compatibility", "20261103100000_compassion_chart_follow_ups", "20261105190000_compassion_paper_forms_visits", "20261106200000_compassion_modules_physician_review"];
 for (const name of names) {
 const sql = await readFile(new URL(`../prisma/migrations/${name}/migration.sql`, import.meta.url), "utf8");
 const checksum = createHash("sha256").update(sql).digest("hex");

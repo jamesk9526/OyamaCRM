@@ -66,7 +66,9 @@ export async function renderFrozenStudio(snapshot: FrozenStudioPrint, sample = f
             const region = `${index ? "continuation" : "first-page"} ${footer ? "footer" : "header"}`;
             const required = Math.ceil(height / 96 * 100) / 100, margin = footer ? "bottom" : "top";
             const guidance = required <= 1.5 ? `Increase the ${margin} margin to at least ${required} in or reduce its content.` : `Reduce its content to fit the ${margin} margin, which can be at most 1.5 in.`;
-            throw new ProductionError(422, `The ${region} exceeds its reserved margin. ${guidance}`);
+            throw new ProductionError(422, `The ${region} exceeds its reserved margin. It needs ${required} in, but only ${inches} in is reserved. ${guidance}`, {
+              region: footer ? index ? "footer" : "firstFooter" : index ? "header" : "firstHeader", margin, required, available: inches,
+            });
           }
           const strip = await page.pdf({ width: `${snapshot.width}in`, height: `${inches}in`, margin: { top: 0, right: 0, bottom: 0, left: 0 }, printBackground: true, preferCSSPageSize: false }); strips.set(key, (await output.embedPdf(strip, [0]))[0]);
         }

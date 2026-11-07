@@ -11,7 +11,7 @@ import { managedPublicMedia } from "../lib/public-media.js";
 export const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
 export const digest = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 export class ProductionError extends Error {
-  constructor(public status: number, message: string) { super(message); }
+  constructor(public status: number, message: string, public repair?: import("../oyama-create/studio/print-repair.js").PrintRegionRepair) { super(message); }
 }
 export async function productionEnabled(organizationId: string): Promise<boolean> {
   const setting = await prisma.pluginSetting.findUnique({ where: { organizationId_pluginKey: { organizationId, pluginKey: "letters-production-v2" } } });

@@ -1,3 +1,4 @@
+import { enabled } from "./module-policy.js";
 import { Router } from "express";
 import { prisma } from "./database.js";
 import { audit, digest, org, seal, unseal } from "./security.js";
@@ -8,9 +9,8 @@ import { careLinks } from "./paper-forms.js";
 
 export const CHART_KINDS = ["PREGNANCY_TEST", "PREGNANCY_HISTORY", "ULTRASOUND", "STD_TEST", "CLINICAL_NOTE", "CONSENT", "HEALTH_PREGNANCY_INTAKE", "VITALS"] as const;
 export function mayEditChart(status: string, authorId: string, userId: string): boolean { return status === "DRAFT" && authorId === userId; }
-export function signedChartDigest(input: { id: string; version: number; content: string; signer: string; signedAt: string }): string {
-  return digest(JSON.stringify(input));
-}
+export { signedChartDigest } from "./clinical-review.js";
+import { signedChartDigest, reviewChart } from "./clinical-review.js";
 export const clinicalRoutes = Router();
 const router = clinicalRoutes;
 
@@ -18,7 +18,7 @@ function checkVersion(updatedAt: Date, expected: unknown) {
   if (expected !== undefined && expected !== updatedAt.toISOString()) throw new CareError(409, "CHART_CHANGED", "This chart has changed. Reload it before continuing.");
 }
 function checkChartVersion(row: { kind: string; updatedAt: Date }, expected: unknown) {
-  if (FORM_TEMPLATES[row.kind]) check(typeof expected === "string", "Reload this form and send its current save version.");
+  if (FORM_TEMPLATES[row.kind] || row.kind === "ULTRASOUND") check(typeof expected === "string", "Reload this form and send its current save version.");
   checkVersion(row.updatedAt, expected);
 }
 
@@ -31,7 +31,7 @@ async function validateUltrasoundLink(organizationId: string, clientId: string, 
 router.get("/charts", ...route("clinical", async (req, res) => {
   const clientId = String(req.query.clientId ?? "");
   if (clientId) await client(req, clientId);
-  const rows = await prisma.compassionChart.findMany({ where: { organizationId: org(req), ...(clientId ? { clientId } : { status: "REVIEW" }) }, orderBy: { createdAt: "desc" }, take: 250 });
+  const rows = await prisma.compassionChart.findMany({ where: { organizationId: org(req), ...(!enabled(res,"ultrasounds") ? { kind: { not: "ULTRASOUND" } } : {}), ...(clientId ? { clientId } : { status: "REVIEW" }) }, orderBy: { createdAt: "desc" }, take: 250 });
   await audit(req, "CHART_LIST_READ", clientId || undefined);
   res.json(rows.map(({ encryptedContent, ...row }) => { void encryptedContent; return row; }));
 }));
@@ -100,31 +100,8 @@ router.post("/charts/:id/submit", ...route("clinical", async (req, res) => {
   await prisma.compassionChart.update({ where: { id: row.id }, data: { status: "REVIEW" } });
   await audit(req, "CHART_SUBMITTED", row.id); res.json({ id: row.id, status: "REVIEW" });
 }));
-router.post("/charts/:id/return", ...route("sign", async (req, res) => {
-  const row = await prisma.compassionChart.findFirst({ where: { id: String(req.params.id), organizationId: org(req) } });
-  check(row?.status === "REVIEW", "Only unsigned charts awaiting review can be returned for correction.");
-  checkChartVersion(row, req.body?.expectedUpdatedAt);
-  const reason = text(req.body?.reason, 5000);
-  const content = JSON.parse(unseal(row.encryptedContent, `${org(req)}:${row.clientId}:chart`));
-  content._review = { reason, reviewerId: req.user!.sub, returnedAt: new Date().toISOString() };
-  await prisma.compassionChart.update({ where: { id: row.id }, data: { status: "DRAFT", encryptedContent: seal(JSON.stringify(content), `${org(req)}:${row.clientId}:chart`) } });
-  await audit(req, "CHART_RETURNED_FOR_CORRECTION", row.id);
-  res.json({ id: row.id, status: "DRAFT" });
-}));
-router.post("/charts/:id/sign", ...route("sign", async (req, res) => {
-  const row = await prisma.compassionChart.findFirst({ where: { id: String(req.params.id), organizationId: org(req) } });
-  check(row?.status === "REVIEW", "Only charts awaiting review may be signed.");
-  checkChartVersion(row, req.body?.expectedUpdatedAt);
-  check(req.body?.attest === true, "Confirm that you reviewed the chart and its attachments.");
-  const signedAt = new Date();
-  const original = unseal(row.encryptedContent, `${org(req)}:${row.clientId}:chart`);
-  const patient = await client(req, row.clientId);
-  const attachments = await prisma.compassionDocument.findMany({ where: { chartId: row.id, clientId: row.clientId, organizationId: org(req), deletedAt: null }, select: { id: true, checksum: true } });
-  const content = JSON.stringify({ ...JSON.parse(original), _signoff: { patient: { id: patient.id, firstName: patient.firstName, lastName: patient.lastName, dateOfBirth: patient.dateOfBirth?.toISOString() ?? null }, attachments } });
-  const signatureDigest = signedChartDigest({ id: row.id, version: row.version, content, signer: req.user!.sub, signedAt: signedAt.toISOString() });
-  await prisma.compassionChart.update({ where: { id: row.id }, data: { encryptedContent: seal(content, `${org(req)}:${row.clientId}:chart`), status: "SIGNED", signedById: req.user!.sub, signedAt, signatureDigest } });
-  await audit(req, "CHART_SIGNED", row.id); res.json({ id: row.id, status: "SIGNED", signatureDigest });
-}));
+router.post("/charts/:id/return", ...route("sign", async (req, res) => { res.json(await reviewChart(req, String(req.params.id), "return")); }));
+router.post("/charts/:id/sign", ...route("sign", async (req, res) => { res.json(await reviewChart(req, String(req.params.id), "sign")); }));
 router.get("/charts/:id/report", ...route("clinical", async (req, res) => {
   const row = await prisma.compassionChart.findFirst({ where: { id: String(req.params.id), organizationId: org(req), status: "SIGNED" } });
   if (!row) throw new CareError(404, "NOT_FOUND", "Signed report not found.");
@@ -139,7 +116,8 @@ router.get("/charts/:id/report", ...route("clinical", async (req, res) => {
 
 router.get("/documents", ...route("clinical", async (req, res) => {
   const clientId = text(req.query.clientId, 191); await client(req, clientId);
-  const rows = await prisma.compassionDocument.findMany({ where: { organizationId: org(req), clientId, deletedAt: null }, select: { id: true, clientId: true, chartId: true, name: true, mimeType: true, checksum: true, size: true, historical: true, shared: true, createdAt: true }, orderBy: { createdAt: "desc" } });
+  const excluded = !enabled(res,"ultrasounds") ? await prisma.compassionChart.findMany({ where: { organizationId: org(req), clientId, kind: "ULTRASOUND" }, select: { id: true } }) : [];
+  const rows = await prisma.compassionDocument.findMany({ where: { organizationId: org(req), clientId, deletedAt: null, ...(!enabled(res,"casework") ? { accessScope: "CLINICAL" } : {}), ...(excluded.length ? { OR: [{ chartId: null }, { chartId: { notIn: excluded.map(r=>r.id) } }] } : {}) }, select: { id: true, clientId: true, chartId: true, name: true, mimeType: true, checksum: true, size: true, historical: true, shared: true, createdAt: true }, orderBy: { createdAt: "desc" } });
   await audit(req, "DOCUMENT_LIST_READ", clientId); res.json(rows);
 }));
 router.post("/documents", ...route("clinical", async (req, res) => {

@@ -1,3 +1,4 @@
+import { organizationModules } from "../compassion/module-policy.js";
 /**
  * Public Compassion CRM routes.
  * Provides unauthenticated appointment widget config and booking submission.
@@ -78,7 +79,7 @@ async function findWidgetByToken(token: string) {
 
   for (const setting of settings) {
     const parsed = parseWidgetConfig(setting.config);
-    if (parsed.token === token) {
+    if (parsed.token === token && (await organizationModules(setting.organizationId)).scheduling) {
       return { setting, config: parsed };
     }
   }

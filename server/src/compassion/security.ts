@@ -2,17 +2,9 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 import type { Request, Response, NextFunction } from "express";
 import { prisma } from "./database.js";
 
-export const CARE_ROLES = ["ADMIN", "RECEPTION", "CASEWORKER", "CLINICIAN", "PHYSICIAN", "READONLY"] as const;
-export type CareRole = typeof CARE_ROLES[number];
-export type CareCapability = "records" | "schedule" | "casework" | "clinical" | "sign" | "import" | "export" | "manage" | "messages";
-const capabilities: Record<CareRole, readonly CareCapability[]> = {
-  ADMIN: ["records", "schedule", "casework", "clinical", "import", "export", "manage", "messages"],
-  RECEPTION: ["records", "schedule", "messages"],
-  CASEWORKER: ["records", "schedule", "casework", "messages"],
-  CLINICIAN: ["records", "schedule", "casework", "clinical", "messages"],
-  PHYSICIAN: ["records", "schedule", "casework", "clinical", "sign", "messages"],
-  READONLY: ["records"],
-};
+import { CARE_ROLES, roleCapabilities as capabilities, type CareRole, type CareCapability } from "./contracts/modules.js";
+import { checkEndpointModules, projectModules } from "./module-policy.js";
+export { CARE_ROLES, type CareRole, type CareCapability };
 export function hasCareCapability(role: string, capability: CareCapability): boolean {
   return CARE_ROLES.includes(role as CareRole) && capabilities[role as CareRole].includes(capability);
 }
@@ -36,8 +28,14 @@ export async function requireCareMembership(req: Request, res: Response, next: N
   if (!account || !membership?.active || !CARE_ROLES.includes(membership.role as CareRole)) {
     res.status(403).json({ error: { code: "COMPASSION_ACCESS_REQUIRED", message: "An active Compassion membership is required. Contact your client-care administrator." } }); return;
   }
+  if (membership.role === "ULTRASOUND_REVIEWER") {
+    res.status(403).json({ error: { code: "REVIEWER_PORTAL_REQUIRED", message: "Use the dedicated physician review login." } }); return;
+  }
   res.locals.careRole = membership.role;
   res.locals.careCapabilities = careCapabilities(membership.role);
+  if (!await checkEndpointModules(req, res)) { res.status(403).json({ error: { code: "MODULE_UNAVAILABLE", message: "This module is not enabled for your care role." } }); return; }
+  const send = res.json.bind(res);
+  res.json = ((body: unknown) => send(projectModules(body, res.locals.careModules))) as Response["json"];
   res.setHeader("Cache-Control", "no-store");
   next();
 }

@@ -1,4 +1,5 @@
 "use client";
+import { useCurrentClient } from "../ClientFileContext";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -6,7 +7,7 @@ import { useAuth } from "@/app/components/auth/AuthProvider";
 import { apiFetch } from "@/app/lib/auth-client";
 import { FORM_TEMPLATES, answerIssues, validateAnswers, type Answers } from "@/server/src/compassion/form-templates";
 import { useCareAccess } from "../CompassionShell";
-import { CareError, careWrite, downloadCareFile, useCareData } from "../care-ui";
+import { CareError, careWrite, downloadCareFile } from "../care-ui";
 import PaperForm from "./PaperForm";
 import { formUrl } from "./ClientForms";
 import "./paper-forms.css";
@@ -17,7 +18,8 @@ export default function FormEditor({ clientId, recordId }: { clientId: string; r
   const clinical = template?.capability === "clinical"; const access = useCareAccess(); const { user } = useAuth(); const router = useRouter();
   const [row,setRow] = useState<FormRecord | null>(null); const [answers,setAnswers] = useState<Answers>({}); const [loading,setLoading] = useState(true); const [error,setError] = useState(""); const [notice,setNotice] = useState(""); const [busy,setBusy] = useState(false); const [dirty,setDirty] = useState(false); const [blank,setBlank] = useState(false); const [attest,setAttest] = useState(false); const [reason,setReason] = useState(""); const [attachments,setAttachments] = useState<Attachment[]>([]); const [revisions,setRevisions] = useState<Array<{ version: number; answers: Answers }>>([]);
   const [attempt,setAttempt] = useState(0);
-  const client = useCareData<{ firstName: string; lastName: string; dateOfBirth?: string; email?: string; phone?: string; addressLine1?: string; city?: string; state?: string; zip?: string }>(`/api/compassion/clients/${encodeURIComponent(clientId)}`);
+  const client = useCurrentClient();
+  const caseContext = params.get("caseId") ? `&caseId=${encodeURIComponent(params.get("caseId")!)}` : "";
   const base = clinical ? "/charts" : "/case-forms";
   const editable = !row || (!clinical || (row.status === "DRAFT" && row.authorId === user?.id));
   useEffect(() => {
@@ -48,8 +50,8 @@ export default function FormEditor({ clientId, recordId }: { clientId: string; r
       const content = { answers, ...(row?.content?.amendmentReason ? { amendmentReason: row.content.amendmentReason } : {}) };
       const value = row ? await careWrite<{ id: string }>(`${base}/${row.id}`, clinical ? { content, expectedUpdatedAt: row.updatedAt } : { answers, expectedVersion: row.version, status: complete ? "COMPLETE" : "DRAFT" },"PATCH") : await careWrite<{ id: string }>(base,{ clientId, kind, answers, content, caseId: params.get("caseId") || undefined, visitId: params.get("visitId") || undefined });
       setDirty(false);
-      if (close) { router.push(`/compassion/clients/${clientId}?tab=forms`); return; }
-      if (!row) { router.replace(formUrl(clientId,kind,value.id)); return; }
+      if (close) { router.push(`/compassion/clients/${clientId}?tab=forms${caseContext}`); return; }
+      if (!row) { router.replace(formUrl(clientId,kind,value.id,caseContext)); return; }
       const updated = await apiFetch<FormRecord>(`/api/compassion${base}/${value.id}`); setRow(updated); setNotice(complete ? "Form marked complete; earlier revisions are preserved." : "Draft saved securely.");
     });
   }
@@ -65,9 +67,9 @@ export default function FormEditor({ clientId, recordId }: { clientId: string; r
   }
   if (!template || !access?.capabilities.includes(template.capability)) return <CareError error="Your role cannot open this form." />;
   const warnings = answerIssues(kind,answers);
-  const close = () => { if (!dirty || window.confirm("Discard unsaved form changes?")) router.push(`/compassion/clients/${clientId}?tab=forms`); };
+  const close = () => { if (!dirty || window.confirm("Discard unsaved form changes?")) router.push(`/compassion/clients/${clientId}?tab=forms${caseContext}`); };
   return <div className="care-form-editor">
-    <div className="care-form-editor-header care-no-print"><div><Link href={`/compassion/clients/${clientId}?tab=forms`}>← Client file</Link><h1>{template.title}</h1><p>{client.data ? `${client.data.firstName} ${client.data.lastName}` : "Client file"} · {row ? `${row.status.toLowerCase()} · revision ${row.version}` : "New paper transcription"}</p></div><button className="care-button secondary" onClick={close}>Close</button></div>
+    <div className="care-form-editor-header care-no-print"><div><Link href={`/compassion/clients/${clientId}?tab=forms${caseContext}`}>← Client file</Link><h1>{template.title}</h1><p>{client.data ? `${client.data.firstName} ${client.data.lastName}` : "Client file"} · {row ? `${row.status.toLowerCase()} · revision ${row.version}` : "New paper transcription"}</p></div><button className="care-button secondary" onClick={close}>Close</button></div>
     <CareError error={error || client.error} />{notice && <p className="care-notice care-no-print" role="status">{notice}</p>}
     {loading ? <p role="status">Opening form…</p> : recordId !== "new" && !row ? <button className="care-button secondary" onClick={() => setAttempt(x=>x+1)}>Try again</button> : <>
     <div className="care-form-tools care-no-print"><nav aria-label="Form pages">{template.pages.map((_,i)=><a key={i} href={`#paper-page-${i+1}`}>Page {i+1}</a>)}</nav><span>Template v{template.version} · {dirty ? "Unsaved changes" : "Paper transcription"}</span>{!row && client.data && <button className="care-button secondary" onClick={() => { const p=client.data!; setAnswers(a=>({...a,firstName:p.firstName,lastName:p.lastName,...(clinical?{name:`${p.firstName} ${p.lastName}`} : {email:p.email || "",phone:p.phone || "",mailingAddress:p.addressLine1 || "",city:p.city || "",state:p.state || "",zip:p.zip || ""}),dateOfBirth:p.dateOfBirth?.slice(0,10) || ""})); if(clinical) setAnswers(a=>Object.fromEntries(Object.entries(a).filter(([k])=>!["firstName","lastName"].includes(k))));setDirty(true); }}>Prefill client details for review</button>}</div>
@@ -79,7 +81,7 @@ export default function FormEditor({ clientId, recordId }: { clientId: string; r
     {kind === "CASE_INTAKE" && <button className="care-button secondary" disabled={busy || dirty} onClick={()=>void run(async()=>{if(!window.confirm("Apply this saved intake’s identity and contact preferences to the client profile? Blank identity fields retain existing values; unconfirmed contact channels become off."))return;await careWrite(`/case-forms/${row.id}/apply-profile`,{approve:true,expectedVersion:row.version});await client.reload();setNotice("Reviewed identity and contact preferences applied.");})}>Review and apply to client profile</button>}</section>}
     {clinical && row && <section><h2>Clinical review</h2>{row.status==="DRAFT" && editable && <button className="care-button" disabled={busy || dirty} onClick={()=>void run(async()=>{await careWrite(`/charts/${row.id}/submit`,{expectedUpdatedAt:row.updatedAt});setAttempt(x=>x+1);setNotice("Submitted and locked for physician review.");})}>Submit for physician review</button>}
     {row.status==="REVIEW" && access.capabilities.includes("sign") && <><label><input type="checkbox" checked={attest} onChange={e=>setAttest(e.target.checked)} /> I reviewed this chart and its attachments.</label><button className="care-button" disabled={busy || !attest} onClick={()=>void run(async()=>{await careWrite(`/charts/${row.id}/sign`,{expectedUpdatedAt:row.updatedAt,attest:true});setAttempt(x=>x+1);})}>Sign chart</button><label>Correction requested<input value={reason} onChange={e=>setReason(e.target.value)} /></label><button className="care-button secondary" disabled={busy || !reason.trim()} onClick={()=>void run(async()=>{await careWrite(`/charts/${row.id}/return`,{reason,expectedUpdatedAt:row.updatedAt});setAttempt(x=>x+1);})}>Return to author</button></>}
-    {row.status==="SIGNED" && <><Link className="care-button secondary" href={`/compassion/care/reports/${row.id}`}>Signed report</Link><label>Reason for amendment<input value={reason} onChange={e=>setReason(e.target.value)} /></label><button className="care-button secondary" disabled={busy || !reason.trim()} onClick={()=>void run(async()=>{const result=await careWrite<{id:string}>("/charts",{clientId,kind,caseId:row.caseId,visitId:row.visitId,previousId:row.id,content:{answers,amendmentReason:reason}});router.push(formUrl(clientId,kind,result.id));})}>Create amendment draft</button></>}</section>}
+    {row.status==="SIGNED" && <><Link className="care-button secondary" href={`/compassion/care/reports/${row.id}`}>Signed report</Link><label>Reason for amendment<input value={reason} onChange={e=>setReason(e.target.value)} /></label><button className="care-button secondary" disabled={busy || !reason.trim()} onClick={()=>void run(async()=>{const result=await careWrite<{id:string}>("/charts",{clientId,kind,caseId:row.caseId,visitId:row.visitId,previousId:row.id,content:{answers,amendmentReason:reason}});router.push(formUrl(clientId,kind,result.id,caseContext));})}>Create amendment draft</button></>}</section>}
     </div><footer className="care-form-footer care-no-print"><span role="status">{busy?"Saving…":dirty?"Unsaved changes":"Saved on server after Save"}</span><button className="care-button secondary" disabled={busy} onClick={()=>{setBlank(false);setTimeout(()=>window.print(),0);}}>Print completed form</button><button className="care-button secondary" disabled={busy} onClick={()=>{setBlank(true);setTimeout(()=>{window.print();setBlank(false);},0);}}>Print blank</button>{editable && <><button className="care-button secondary" disabled={busy} onClick={()=>void save()}>Save draft</button>{row&&!clinical&&<button className="care-button secondary" disabled={busy || warnings.length>0} onClick={()=>void save(false,true)}>Mark complete</button>}<button className="care-button" disabled={busy} onClick={()=>void save(true)}>Save and close</button></>}</footer>
     </>}
   </div>;

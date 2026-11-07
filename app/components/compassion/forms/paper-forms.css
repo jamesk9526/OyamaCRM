@@ -6,7 +6,8 @@
 .care-form-tools { display:flex; flex-wrap:wrap; gap:16px; align-items:center; padding:12px 0; font-size:12px; color:#415873; position:sticky; top:0; background:#edf4fb; z-index:10; }
 .care-form-tools nav { display:flex; gap:8px; }
 .care-form-tools nav a { padding:8px 12px; border:1px solid #bed0e7; background:white; border-radius:5px; }
-.care-form-footer { position:fixed; bottom:0; right:0; left:220px; z-index:30; background:#fff; border-top:1px solid #cbd9e9; display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:12px 20px; box-shadow:0 -3px 15px #18395d0a; }
+.care-form-footer { position:fixed; bottom:0; right:220px; left:0; z-index:30; background:#fff; border-top:1px solid #cbd9e9; display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:12px 20px; box-shadow:0 -3px 15px #18395d0a; }
+.care-app.rail-collapsed .care-form-footer { right:0; }
 .care-form-footer > span { margin-right:auto; font-size:12px; color:#435a75; }
 .care-form-support { max-width:816px; margin:22px auto; display:grid; gap:18px; }
 .care-form-support section { padding:20px; border:1px solid #cfdeed; border-radius:6px; background:white; display:grid; gap:12px; font-size:13px; }
@@ -59,7 +60,7 @@
  .paper-field input { min-height:32px; }
  .paper-options label { display:inline-block; margin:5px 8px 5px 0; }
  .paper-options input { width:18px; height:18px; }
- .care-form-footer { left:0; position:sticky; margin:0 -16px -24px; }
+ .care-form-footer { left:0; right:0; position:sticky; margin:0 -16px -24px; }
  .care-form-editor { padding-bottom:0; }
  .paper-title strong { font-size:20px; }
 }

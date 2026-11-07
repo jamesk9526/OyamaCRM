@@ -149,7 +149,7 @@ function classicPageLayout(page: StudioDesign["page"], previous: unknown) {
 
 async function advancedLetter(req: Request, content: CreateContent, design: StudioDesign): Promise<ClassicLetterAdvanced> {
   const brand = await brandForStudio(content.organizationId, design, "LETTER");
-  const { body: _body, ...html } = classicRegionHtml(design, brand, await hydrateSourceHtml(req, content.organizationId, design));
+  const { body: _body, ...html } = classicRegionHtml(design, brand, await hydrateSourceHtml(req, content.organizationId, design), true);
   const { content: _reply, ...replySlip } = design.pack.replySlip;
   const blocks = walkNodes(channelDesign(design, "LETTER").body).flatMap(node => {
     if (!Object.prototype.hasOwnProperty.call(CLASSIC_CRM_FIELDS, node.type)) return [];

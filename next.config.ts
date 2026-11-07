@@ -33,6 +33,7 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
+      { source: "/compassion/physician/:path*", headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }, { key: "Referrer-Policy", value: "no-referrer" }, { key: "X-Frame-Options", value: "DENY" }] },
       // The sandboxed Studio preview has an opaque origin and uses these public print fonts.
       ...["inter-latin-variable", "noto-serif-latin"].map(font => ({
         source: `/fonts/${font}.woff2`,
